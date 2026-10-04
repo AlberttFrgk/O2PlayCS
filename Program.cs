@@ -16,6 +16,19 @@ namespace O2Play
         public static void ForceForegroundWindow(IntPtr hWnd) => IpcManager.ForceForegroundWindow(hWnd);
         public static bool AllowSetForegroundWindow(int dwProcessId) => IpcManager.AllowSetForegroundWindow(dwProcessId);
 
+        // Exported flags for NVIDIA Optimus and AMD PowerXpress to request discrete GPU
+        [UnmanagedCallersOnly(EntryPoint = "NvOptimusEnablement")]
+        public static uint NvOptimusEnablement() => 0x00000001;
+
+        [UnmanagedCallersOnly(EntryPoint = "AmdPowerXpressRequestHighPerformance")]
+        public static int AmdPowerXpressRequestHighPerformance() => 1;
+
+        [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+        private static extern uint TimeBeginPeriod(uint uMilliseconds);
+
+        [DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
+        private static extern uint TimeEndPeriod(uint uMilliseconds);
+
         private BmsChart _chart = null!;
         private AudioEngine _audio = null!;
         private GameEngine _engine = null!;
@@ -86,7 +99,7 @@ namespace O2Play
                 if (_engine != null)
                 {
                     _engine.IsPlaying = true;
-                    if (parsed.Measure > 0 && !_chart.IsDummy)
+                    if (parsed.Measure > 0 && _chart.Notes.Count > 0)
                     {
                         double targetTime = _chart.TickToSeconds(parsed.Measure * 192.0);
                         _engine.SeekTo(targetTime);
@@ -108,131 +121,196 @@ namespace O2Play
         {
             StartIpcServer();
 
-            // Hardware-accelerated OpenGL with VSync locked to native display refresh rate
-            Raylib.SetConfigFlags(ConfigFlags.VSyncHint);
-            Raylib.InitWindow(391, 600, "O2Viewer");
-            Raylib.SetExitKey(KeyboardKey.Null); // GameEngine handles Escape when window is focused
-            Raylib.SetTargetFPS(0); // 0 lets OpenGL VSync buffer swaps govern cadence without CPU timer jitter
+            // Ask / configure Windows GPU preference for High Performance Discrete GPU (dGPU) first
+            GraphicsManager.InitializeGpuPreference();
 
-            _audio = new AudioEngine();
-            _chart = ChartManager.GenerateDummyChart();
-
-            string initTitle = !string.IsNullOrEmpty(_chart.Header.Title) && _chart.Header.Title != "O2Viewer" ? $"O2Viewer - {_chart.Header.Title}" : "O2Viewer";
-            Raylib.SetWindowTitle(initTitle);
-
-            _engine = new GameEngine(_chart, _audio);
-            _engine.RequestOpenFile += OpenBmsDialog;
-            _engine.RequestChangeDifficulty += ChangeOjnDifficulty;
-
-            if (initialArgs.Length > 0)
+            TimeBeginPeriod(1);
+            try
             {
-                ProcessCommandLineArgs(initialArgs, isInitial: true);
-                if (_exitRequested)
-                {
-                    _audio.StopAll();
-                    _engine?.Dispose();
-                    Raylib.CloseWindow();
-                    return;
-                }
-            }
+                // High-precision frame pacing
+                Raylib.InitWindow(391, 600, "O2Viewer");
+                Raylib.SetExitKey(KeyboardKey.Null); // GameEngine handles Escape when window is focused
+                Raylib.SetTargetFPS(0);
 
-            int _testFrameCounter = 0;
-            while (!Raylib.WindowShouldClose())
-            {
-                // Dequeue and process any commands sent by iBMSC or subsequent instances
-                while (_pendingIpcCommands.TryDequeue(out var ipcArgs))
+                if (UserSettings.Load().AlwaysOnTop)
                 {
-                    ProcessCommandLineArgs(ipcArgs, isInitial: false);
+                    Raylib.SetWindowState(ConfigFlags.TopmostWindow);
+                    IpcManager.SetAlwaysOnTop(GetHwnd(), true);
                 }
 
-                // Only exit on Escape when window is focused
-                if (Raylib.IsWindowFocused() && Raylib.IsKeyPressed(KeyboardKey.Escape))
-                {
-                    break;
-                }
+                // Verify and log active OpenGL device/vendor
+                GraphicsManager.LogActiveGpu();
 
-                // File Drag and Drop directly onto the Raylib OpenGL window
-                if (Raylib.IsFileDropped())
+                _audio = new AudioEngine();
+                _chart = ChartManager.CreateEmptyChart();
+
+                string initTitle = !string.IsNullOrEmpty(_chart.Header.Title) ? $"O2Viewer - {_chart.Header.Title}" : "O2Viewer";
+                Raylib.SetWindowTitle(initTitle);
+
+                _engine = new GameEngine(_chart, _audio);
+                _engine.RequestOpenFile += OpenBmsDialog;
+                _engine.RequestChangeDifficulty += ChangeOjnDifficulty;
+
+                if (initialArgs.Length > 0)
                 {
-                    var dropped = Raylib.LoadDroppedFiles();
-                    unsafe
+                    ProcessCommandLineArgs(initialArgs, isInitial: true);
+                    if (_exitRequested)
                     {
-                        for (int i = 0; i < (int)dropped.Count; i++)
+                        _audio.StopAll();
+                        _engine?.Dispose();
+                        Raylib.CloseWindow();
+                        return;
+                    }
+                }
+
+                int _testFrameCounter = 0;
+                long lastTick = System.Diagnostics.Stopwatch.GetTimestamp();
+                double targetFps = UserSettings.Load().FPSTarget > 0 ? UserSettings.Load().FPSTarget : 500.0;
+
+                while (!Raylib.WindowShouldClose())
+                {
+                    // Dequeue and process any commands sent by iBMSC or subsequent instances
+                    while (_pendingIpcCommands.TryDequeue(out var ipcArgs))
+                    {
+                        ProcessCommandLineArgs(ipcArgs, isInitial: false);
+                    }
+
+                    // Only exit on Escape when window is focused
+                    if (Raylib.IsWindowFocused() && Raylib.IsKeyPressed(KeyboardKey.Escape))
+                    {
+                        break;
+                    }
+
+                    // File Drag and Drop directly onto the Raylib OpenGL window
+                    if (Raylib.IsFileDropped())
+                    {
+                        var dropped = Raylib.LoadDroppedFiles();
+                        unsafe
                         {
-                            if (dropped.Paths != null && dropped.Paths[i] != null)
+                            for (int i = 0; i < (int)dropped.Count; i++)
                             {
-                                string? file = Marshal.PtrToStringUTF8((IntPtr)dropped.Paths[i]);
-                                if (!string.IsNullOrEmpty(file) &&
-                                    (file.EndsWith(".bms", StringComparison.OrdinalIgnoreCase) ||
-                                     file.EndsWith(".bme", StringComparison.OrdinalIgnoreCase) ||
-                                     file.EndsWith(".bml", StringComparison.OrdinalIgnoreCase) ||
-                                     file.EndsWith(".ojn", StringComparison.OrdinalIgnoreCase)))
+                                if (dropped.Paths != null && dropped.Paths[i] != null)
                                 {
-                                    _pendingFileToLoad = file;
-                                    break;
+                                    string? file = Marshal.PtrToStringUTF8((IntPtr)dropped.Paths[i]);
+                                    if (!string.IsNullOrEmpty(file) &&
+                                        (file.EndsWith(".bms", StringComparison.OrdinalIgnoreCase) ||
+                                         file.EndsWith(".bme", StringComparison.OrdinalIgnoreCase) ||
+                                         file.EndsWith(".bml", StringComparison.OrdinalIgnoreCase) ||
+                                         file.EndsWith(".ojn", StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        _pendingFileToLoad = file;
+                                        break;
+                                    }
                                 }
                             }
                         }
+                        Raylib.UnloadDroppedFiles(dropped);
                     }
-                    Raylib.UnloadDroppedFiles(dropped);
-                }
 
-                // Process any pending file chosen via dialog, drag & drop, or command line
-                if (_pendingFileToLoad != null)
-                {
-                    string file = _pendingFileToLoad;
-                    OjnDifficulty? diff = _pendingDifficultyToLoad >= 0 ? (OjnDifficulty)_pendingDifficultyToLoad : null;
-                    _pendingFileToLoad = null;
-                    _pendingDifficultyToLoad = -1;
-                    LoadBmsFile(file, diff);
-                }
-
-                // Background audio management: if on background or minimized, don't play audio
-                bool isWindowActive = Raylib.IsWindowFocused() && !Raylib.IsWindowMinimized();
-
-                if (!isWindowActive)
-                {
-                    if (_engine.IsPlaying && !_pausedDueToBackground)
+                    // Process any pending file chosen via dialog, drag & drop, or command line
+                    if (_pendingFileToLoad != null)
                     {
-                        _pausedDueToBackground = true;
-                        _engine.IsPlaying = false;
-                        _audio.Pause();
+                        string file = _pendingFileToLoad;
+                        OjnDifficulty? diff = _pendingDifficultyToLoad >= 0 ? (OjnDifficulty)_pendingDifficultyToLoad : null;
+                        _pendingFileToLoad = null;
+                        _pendingDifficultyToLoad = -1;
+                        LoadBmsFile(file, diff);
                     }
-                }
-                else
-                {
-                    if (_pausedDueToBackground)
+
+                    // Background audio management: if on background or minimized, don't play audio
+                    bool isWindowActive = Raylib.IsWindowFocused() && !Raylib.IsWindowMinimized();
+
+                    if (!isWindowActive)
                     {
-                        _pausedDueToBackground = false;
-                        _engine.IsPlaying = true;
-                        _audio.Resume();
+                        if (_engine.IsPlaying && !_pausedDueToBackground)
+                        {
+                            _pausedDueToBackground = true;
+                            _engine.IsPlaying = false;
+                            _audio.Pause();
+                        }
+                    }
+                    else
+                    {
+                        if (_pausedDueToBackground)
+                        {
+                            _pausedDueToBackground = false;
+                            _engine.IsPlaying = true;
+                            _audio.Resume();
+                        }
+                    }
+
+                    // Throttle frame rate when unfocused or minimized to keep CPU cool
+                    double effectiveTargetFps = isWindowActive ? targetFps : Math.Min(60.0, targetFps);
+                    float dt = (float)PreciseFrameLimit(ref lastTick, effectiveTargetFps);
+                    _audio.Update();
+                    _engine.IsWindowFocused = isWindowActive;
+                    _engine.Update(dt);
+
+                    Raylib.BeginDrawing();
+                    Raylib.ClearBackground(new Color(0, 96, 128, 255));
+                    _engine.Draw();
+                    Raylib.EndDrawing();
+
+                    string? testExitEnv = Environment.GetEnvironmentVariable("O2_TEST_EXIT_FRAMES");
+                    if (testExitEnv != null && int.TryParse(testExitEnv, out int maxFrames) && ++_testFrameCounter >= maxFrames)
+                    {
+                        break;
                     }
                 }
 
-                float dt = Math.Min(Raylib.GetFrameTime(), 0.1f);
-                _audio.Update();
-                _engine.IsWindowFocused = isWindowActive;
-                _engine.Update(dt);
-
-                Raylib.BeginDrawing();
-                Raylib.ClearBackground(new Color(0, 96, 128, 255));
-                _engine.Draw();
-                Raylib.EndDrawing();
-
-                string? testExitEnv = Environment.GetEnvironmentVariable("O2_TEST_EXIT_FRAMES");
-                if (testExitEnv != null && int.TryParse(testExitEnv, out int maxFrames) && ++_testFrameCounter >= maxFrames)
-                {
-                    break;
-                }
+                _ipcCancelSource?.Cancel();
+                _audio.StopAll();
+                _engine?.Dispose();
+                Raylib.CloseWindow();
             }
-
-            _ipcCancelSource?.Cancel();
-            _audio.StopAll();
-            _engine?.Dispose();
-            Raylib.CloseWindow();
+            finally
+            {
+                TimeEndPeriod(1);
+            }
         }
 
         private static unsafe IntPtr GetHwnd() => (IntPtr)Raylib.GetWindowHandle();
+
+        private static double PreciseFrameLimit(ref long prevTick, double maxFrameRate)
+        {
+            long freq = System.Diagnostics.Stopwatch.Frequency;
+            long curTick = System.Diagnostics.Stopwatch.GetTimestamp();
+
+            if (maxFrameRate > 0.0)
+            {
+                long targetTicks = (long)(freq / maxFrameRate);
+                long elapsed = curTick - prevTick;
+
+                if (elapsed < targetTicks)
+                {
+                    double remainingMs = (targetTicks - elapsed) * 1000.0 / freq;
+                    // With TimeBeginPeriod(1), Thread.Sleep achieves 1ms precision without spinning
+                    if (remainingMs >= 1.5)
+                    {
+                        Thread.Sleep((int)(remainingMs - 1.0));
+                    }
+
+                    // For the remaining sub-millisecond tail, pause CPU to reduce power/heat
+                    while (true)
+                    {
+                        curTick = System.Diagnostics.Stopwatch.GetTimestamp();
+                        if (curTick - prevTick >= targetTicks)
+                        {
+                            break;
+                        }
+                        Thread.SpinWait(10);
+                    }
+                }
+            }
+
+            double delta = (curTick - prevTick) / (double)freq;
+            prevTick = curTick;
+
+            if (delta > 0.1) delta = 0.1;
+            if (delta <= 0.0) delta = 0.0001;
+
+            return delta;
+        }
 
         public void OpenBmsDialog()
         {

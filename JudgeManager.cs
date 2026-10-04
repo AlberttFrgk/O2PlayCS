@@ -23,21 +23,18 @@ namespace O2Play
                     if (!note.IsHit && currentTime >= note.TimeSeconds)
                     {
                         note.IsHit = true;
-                        if (!chart.IsDummy)
+                        if (audioMgr.Audio.IsBgmTrack(note.SoundIndex))
                         {
-                            if (audioMgr.Audio.IsBgmTrack(note.SoundIndex))
+                            if (audioMgr.Audio.CurrentBgmIndex != note.SoundIndex || !audioMgr.Audio.IsBgmPlaying)
                             {
-                                if (audioMgr.Audio.CurrentBgmIndex != note.SoundIndex || !audioMgr.Audio.IsBgmPlaying)
-                                {
-                                    audioMgr.ActiveBgmStartSongTime = note.TimeSeconds;
-                                    double offset = Math.Max(0, currentTime - note.TimeSeconds);
-                                    audioMgr.PlayBgm(note.SoundIndex, offset, isPlaying);
-                                }
+                                audioMgr.ActiveBgmStartSongTime = note.TimeSeconds;
+                                double offset = Math.Max(0, currentTime - note.TimeSeconds);
+                                audioMgr.PlayBgm(note.SoundIndex, offset, isPlaying);
                             }
-                            else
-                            {
-                                audioMgr.PlayBackgroundKeysound(note.SoundIndex, note.Volume, note.Pan);
-                            }
+                        }
+                        else
+                        {
+                            audioMgr.PlayBackgroundKeysound(note.SoundIndex, note.Volume, note.Pan);
                         }
                     }
                 }
@@ -48,8 +45,9 @@ namespace O2Play
         {
             if (chart == null) return;
 
-            foreach (var note in chart.Notes)
+            for (int i = 0; i < chart.Notes.Count; i++)
             {
+                var note = chart.Notes[i];
                 int laneIdx = note.Lane - 1;
                 if (note.IsKeysound || laneIdx < 0 || laneIdx > 6) continue;
 
@@ -67,9 +65,9 @@ namespace O2Play
                         animation.KeyHitTimers[laneIdx] = 0.12f;
                         animation.LaneHolding[laneIdx] = true;
 
-                        if (audioMgr.IsKeySoundEnabled && !chart.IsDummy)
+                        if (audioMgr.IsKeySoundEnabled && note.SoundIndex >= 0)
                         {
-                            if (note.SoundIndex >= 0) audioMgr.PlayKeysound(note.SoundIndex, note.Volume, note.Pan);
+                            audioMgr.PlayKeysound(note.SoundIndex, note.Volume, note.Pan);
                         }
                     }
                     // While holding
@@ -119,16 +117,33 @@ namespace O2Play
                         animation.TriggerJudge();
                         animation.TriggerCombo();
 
-                        // Normal note in autoplay: release after 10 frames
-                        animation.KeyHitFrames[laneIdx] = 7;
-                        animation.LightFrames[laneIdx] = 7;
-                        animation.KeyHitTimers[laneIdx] = 0f;
-                        animation.LightTimers[laneIdx] = 0f;
+                        // Normal note: human-like key tap hold duration (~80ms),
+                        // releasing early if the next note in the same lane arrives sooner
+                        float holdTime = 0.060f;
+                        float speed = Math.Max(0.1f, audioMgr.MusicSpeed);
+                        for (int nextIdx = i + 1; nextIdx < chart.Notes.Count; nextIdx++)
+                        {
+                            var next = chart.Notes[nextIdx];
+                            if (next.Lane == note.Lane && !next.IsKeysound)
+                            {
+                                double realGap = (next.TimeSeconds - note.TimeSeconds) / speed;
+                                if (realGap > 0.001)
+                                {
+                                    holdTime = Math.Clamp((float)(realGap * 0.75), 0.030f, 0.060f);
+                                }
+                                break;
+                            }
+                        }
+
+                        animation.KeyHitTimers[laneIdx] = holdTime;
+                        animation.LightTimers[laneIdx] = holdTime;
+                        animation.KeyHitFrames[laneIdx] = 0;
+                        animation.LightFrames[laneIdx] = 0;
                         animation.HitEffectTimers[laneIdx] = 0.15f;
 
-                        if (audioMgr.IsKeySoundEnabled && !chart.IsDummy)
+                        if (audioMgr.IsKeySoundEnabled && note.SoundIndex >= 0)
                         {
-                            if (note.SoundIndex >= 0) audioMgr.PlayKeysound(note.SoundIndex, note.Volume, note.Pan);
+                            audioMgr.PlayKeysound(note.SoundIndex, note.Volume, note.Pan);
                         }
                     }
                 }
@@ -199,10 +214,9 @@ namespace O2Play
                     animation.LightTimers[laneIdx] = 0.100f;
                     animation.HitEffectTimers[laneIdx] = 0.15f;
 
-                    if (audioMgr.IsKeySoundEnabled)
+                    if (audioMgr.IsKeySoundEnabled && target.SoundIndex >= 0)
                     {
-                        if (!chart.IsDummy && target.SoundIndex >= 0) audioMgr.PlayKeysound(target.SoundIndex, target.Volume, target.Pan);
-                        else audioMgr.PlayKeysound(target.Lane, target.Volume, target.Pan);
+                        audioMgr.PlayKeysound(target.SoundIndex, target.Volume, target.Pan);
                     }
                 }
                 else
@@ -216,9 +230,9 @@ namespace O2Play
                     animation.LightTimers[laneIdx] = 0.100f;
                     animation.HitEffectTimers[laneIdx] = 0.15f;
 
-                    if (audioMgr.IsKeySoundEnabled && !chart.IsDummy)
+                    if (audioMgr.IsKeySoundEnabled && target.SoundIndex >= 0)
                     {
-                        if (target.SoundIndex >= 0) audioMgr.PlayKeysound(target.SoundIndex, target.Volume, target.Pan);
+                        audioMgr.PlayKeysound(target.SoundIndex, target.Volume, target.Pan);
                     }
                 }
             }

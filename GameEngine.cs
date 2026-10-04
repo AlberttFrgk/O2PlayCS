@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Raylib_cs;
 
@@ -131,39 +131,38 @@ namespace O2Play
             CurrentTime = 0;
             ScoreMgr.Reset();
             Animation.Reset();
-            IsPlaying = true;
+            IsPlaying = newChart.Notes.Count > 0;
 
             Graphics?.Reset();
 
             AudioMgr.ActiveBgmStartSongTime = -1.0;
             AudioMgr.StopBgm();
             AudioMgr.UpdateSyncSettings();
-            AudioMgr.Resume();
-            SeekTo(0);
+            if (IsPlaying)
+            {
+                AudioMgr.Resume();
+                SeekTo(0);
+            }
         }
 
         public void Update(float dt)
         {
-            // A long audio (re)start blocks the main thread; the next frame's dt then includes that stall
-            // while the audio only just started, which pushes notes ahead of the music.
-            if (AudioMgr.ConsumeClockStall()) dt = Math.Min(dt, 1.0f / 60.0f);
+            // Protect against huge delta spike if the window was frozen/dragged
+            dt = Math.Clamp(dt, 0.0001f, 0.1f);
 
             InputMgr.Update(this, JudgeMgr);
 
             if (!IsPlaying || InputMgr.IsDraggingProgress) return;
+
+            // Master clock advances purely via delta-time and music speed
             CurrentTime += dt * MusicSpeed;
 
-            // Hardware-accurate audio clock synchronization to prevent drift at any speed
-            CurrentTime = AudioMgr.SyncBgmClock(CurrentTime);
-
-            // Dummy chart: continuous seamless loop without stopping or replaying from beginning
-            ChartMgr.UpdateDummyLoop(CurrentTime);
-
-            // Stop playback when song ends (non-dummy)
-            if (!Chart.IsDummy && CurrentTime >= TotalDuration + 1.0)
+            // Stop playback when song ends
+            if (TotalDuration > 0 && CurrentTime >= TotalDuration + 1.0)
             {
                 CurrentTime = TotalDuration;
                 IsPlaying = false;
+                AudioMgr.StopAll();
                 AudioMgr.StopBgm();
                 return;
             }
@@ -180,14 +179,14 @@ namespace O2Play
 
         public void SeekToFrac(float frac)
         {
-            if (Chart.IsDummy) return;
+            if (Chart.Notes.Count == 0) return;
             double targetTime = ChartMgr.GetTimeFromFrac(frac);
             SeekTo(targetTime);
         }
 
         public void SeekTo(double targetTime)
         {
-            if (Chart.IsDummy) return;
+            if (Chart.Notes.Count == 0) return;
             AudioMgr.StopAll();
 
             CurrentTime = Math.Clamp(targetTime, 0, TotalDuration);

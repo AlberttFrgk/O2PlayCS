@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using Raylib_cs;
 
@@ -68,7 +68,7 @@ namespace O2Play
 
             if (Raylib.IsKeyPressed(KeyboardKey.One) || Raylib.IsKeyPressed(KeyboardKey.Kp1))
             {
-                engine.MusicSpeed = (float)Math.Round(Math.Max(0.5f, engine.MusicSpeed - 0.1f), 1);
+                engine.MusicSpeed = (float)Math.Round(Math.Max(0.1f, engine.MusicSpeed - 0.1f), 1);
                 engine.AudioMgr.UpdateSyncSettings();
             }
             if (Raylib.IsKeyPressed(KeyboardKey.Two) || Raylib.IsKeyPressed(KeyboardKey.Kp2))
@@ -134,7 +134,7 @@ namespace O2Play
                 // Row 8 (MusicSpeed): Y = 264..283, X = 202..389 -> increase 0.1x
                 else if (mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 264 && mouse.Y <= 283)
                 {
-                    engine.MusicSpeed = (engine.MusicSpeed >= 2.0f) ? 0.5f : (float)Math.Round(engine.MusicSpeed + 0.1f, 1);
+                    engine.MusicSpeed = (engine.MusicSpeed >= 2.0f) ? 0.1f : (float)Math.Round(engine.MusicSpeed + 0.1f, 1);
                     engine.AudioMgr.UpdateSyncSettings();
                 }
                 // Check1 (KEY): Y = 296..315, X = 202..389
@@ -170,7 +170,7 @@ namespace O2Play
                 // MusicSpeed right click: decrease 0.1x
                 else if (mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 264 && mouse.Y <= 283)
                 {
-                    engine.MusicSpeed = (engine.MusicSpeed <= 0.5f) ? 2.0f : (float)Math.Round(engine.MusicSpeed - 0.1f, 1);
+                    engine.MusicSpeed = (engine.MusicSpeed <= 0.1f) ? 2.0f : (float)Math.Round(engine.MusicSpeed - 0.1f, 1);
                     engine.AudioMgr.UpdateSyncSettings();
                 }
             }
@@ -202,13 +202,13 @@ namespace O2Play
                 {
                     engine.MusicSpeed = scrollDelta > 0
                         ? (float)Math.Round(Math.Min(2.0f, engine.MusicSpeed + 0.1f), 1)
-                        : (float)Math.Round(Math.Max(0.5f, engine.MusicSpeed - 0.1f), 1);
+                        : (float)Math.Round(Math.Max(0.1f, engine.MusicSpeed - 0.1f), 1);
                     engine.AudioMgr.UpdateSyncSettings();
                 }
             }
 
             // Mouse wheel scroll over progress bar or playfield: scroll through measures
-            if (scrollDelta != 0 && !engine.Chart.IsDummy)
+            if (scrollDelta != 0 && engine.TotalDuration > 0)
             {
                 bool isOverProgress = (mouse.X >= 200 && mouse.X <= 391 && mouse.Y >= 388 && mouse.Y <= 415);
                 bool isOverPlayfield = (mouse.X >= 0 && mouse.X <= 204 && mouse.Y >= 0 && mouse.Y <= 480);
@@ -228,7 +228,7 @@ namespace O2Play
             }
 
             // Progress bar click/drag: Y = 388..415, X = 200..391 (disabled if no chart loaded)
-            if (!engine.Chart.IsDummy && isClick && mouse.X >= 200 && mouse.X <= 391 && mouse.Y >= 388 && mouse.Y <= 415)
+            if (engine.TotalDuration > 0 && isClick && mouse.X >= 200 && mouse.X <= 391 && mouse.Y >= 388 && mouse.Y <= 415)
             {
                 _isDraggingProgress = true;
                 _wasPlayingBeforeDrag = engine.IsPlaying;
@@ -238,7 +238,7 @@ namespace O2Play
                 engine.AudioMgr.Pause();
                 engine.SeekToFrac(_dragFrac);
             }
-            else if (!engine.Chart.IsDummy && _isDraggingProgress)
+            else if (engine.TotalDuration > 0 && _isDraggingProgress)
             {
                 if (isHeld)
                 {

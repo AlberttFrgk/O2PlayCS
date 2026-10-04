@@ -8,9 +8,21 @@ namespace O2Play
     {
         public AudioEngine Audio { get; }
 
-        public float MusicSpeed { get; set; } = 1.0f;
-        public bool IsKeySoundEnabled { get; set; } = true;
-        public bool IsBgmEnabled { get; set; } = true;
+        public float MusicSpeed
+        {
+            get => Audio.MusicSpeed;
+            set => Audio.MusicSpeed = value;
+        }
+        public bool IsKeySoundEnabled
+        {
+            get => Audio.IsKeySoundEnabled;
+            set => Audio.IsKeySoundEnabled = value;
+        }
+        public bool IsBgmEnabled
+        {
+            get => Audio.IsBgmEnabled;
+            set => Audio.IsBgmEnabled = value;
+        }
 
         public double ActiveBgmStartSongTime { get; set; } = -1.0;
 
@@ -31,24 +43,7 @@ namespace O2Play
 
         public double SyncBgmClock(double currentTime)
         {
-            // Hardware-accurate audio clock synchronization to prevent drift at any speed
-            if (Audio.IsBgmPlaying && ActiveBgmStartSongTime >= 0)
-            {
-                double bgmPos = Audio.BgmPositionSeconds;
-                if (bgmPos >= 0)
-                {
-                    double expectedSongTime = ActiveBgmStartSongTime + bgmPos;
-                    double drift = expectedSongTime - currentTime;
-                    if (Math.Abs(drift) > 0.15)
-                    {
-                        return expectedSongTime;
-                    }
-                    else if (Math.Abs(drift) > 0.01)
-                    {
-                        return currentTime + (drift * 0.1); // Smooth convergence
-                    }
-                }
-            }
+            // Software delta-time clock is the single source of truth.
             return currentTime;
         }
 

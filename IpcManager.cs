@@ -42,9 +42,30 @@ namespace O2Play
         [DllImport("user32.dll")]
         public static extern bool AllowSetForegroundWindow(int dwProcessId);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        private static readonly IntPtr HWND_ALWAYSONTOP = new IntPtr(-1);
+        private static readonly IntPtr HWND_NOALWAYSONTOP = new IntPtr(-2);
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_SHOWWINDOW = 0x0040;
+
         public const int SW_RESTORE = 9;
         public const int SW_SHOW = 5;
         public const int ASFW_ANY = -1;
+
+        public static void SetAlwaysOnTop(IntPtr hWnd, bool alwaysOnTop)
+        {
+            if (hWnd == IntPtr.Zero) return;
+            try
+            {
+                IntPtr insertAfter = alwaysOnTop ? HWND_ALWAYSONTOP : HWND_NOALWAYSONTOP;
+                SetWindowPos(hWnd, insertAfter, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            }
+            catch { }
+        }
 
         public static void ForceForegroundWindow(IntPtr hWnd)
         {

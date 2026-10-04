@@ -77,6 +77,8 @@ namespace O2Play
             Array.Clear(_keyPressed, 0, 7);
         }
 
+        public const double ComboAnimDuration = 5.0 / 60.0;
+
         public void TriggerJudge()
         {
             _drawJudge = true;
@@ -87,6 +89,11 @@ namespace O2Play
         public void TriggerCombo()
         {
             _drawCombo = true;
+            // Debounce chord micro-intervals (< 15ms) to prevent violent dual-trigger flickering
+            if (_comboTimer < 0.015 && _comboTimer > 0.0)
+            {
+                return;
+            }
             _comboTimer = 0.0;
         }
 

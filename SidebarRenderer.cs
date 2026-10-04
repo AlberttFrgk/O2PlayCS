@@ -80,15 +80,15 @@ namespace O2Play
             Raylib.DrawRectangle(202, 599, 189, 1, new Color(0, 48, 64, 255));
 
             // Frame Header (jcFrames1 Header, Y = 2 to 36)
-            string title = !string.IsNullOrEmpty(engine.Chart.Header.Title) ? engine.Chart.Header.Title : "O2Viewer";
+            string title = !string.IsNullOrEmpty(engine.Chart.Header.Title) ? engine.Chart.Header.Title : "Load Chart File";
             UpdateHeaderTexture(title);
             if (_texHeader.HasValue)
                 Raylib.DrawTexture(_texHeader.Value, 202, 2, Color.White);
 
             // Calculate dynamic values
-            double currentBpm = engine.Chart.GetBpmAt(engine.CurrentTime);
-            int currentMeasure = engine.Chart.IsDummy ? 0 : engine.Chart.SecondsToMeasure(engine.CurrentTime);
-            TimeSpan timeSpan = TimeSpan.FromSeconds(engine.Chart.IsDummy ? 0 : engine.CurrentTime);
+            double currentBpm = engine.Chart.Notes.Count == 0 ? 0.0 : engine.Chart.GetBpmAt(engine.CurrentTime);
+            int currentMeasure = engine.TotalDuration <= 0 ? 0 : engine.Chart.SecondsToMeasure(engine.CurrentTime);
+            TimeSpan timeSpan = TimeSpan.FromSeconds(engine.TotalDuration <= 0 ? 0 : engine.CurrentTime);
             string timeStr = timeSpan.ToString(@"mm\:ss");
 
             // Text boxes (X = 202, W = 187, H = 19, Y starts at 40, step 32)
@@ -114,7 +114,8 @@ namespace O2Play
             UpdateBoxTexture(ref _texBpm, ref _lastBpm, bpmStr, 187, 19);
             if (_texBpm.HasValue) Raylib.DrawTexture(_texBpm.Value, 202, 200, Color.White);
 
-            UpdateBoxTexture(ref _texPlaySpeed, ref _lastPlaySpeed, "   Play Speed: " + engine.PlaySpeed.ToString("0.0"), 187, 19);
+            string playSpeedStr = engine.PlaySpeed == 0.25f ? "0.25" : engine.PlaySpeed.ToString("0.0");
+            UpdateBoxTexture(ref _texPlaySpeed, ref _lastPlaySpeed, "   Play Speed: " + playSpeedStr, 187, 19);
             if (_texPlaySpeed.HasValue) Raylib.DrawTexture(_texPlaySpeed.Value, 202, 232, Color.White);
 
             UpdateBoxTexture(ref _texMusicSpeed, ref _lastMusicSpeed, "   Music Speed: " + engine.MusicSpeed.ToString("0.0"), 187, 19);
@@ -164,7 +165,7 @@ namespace O2Play
                     mouse = new Vector2(295, 401);
                 }
             }
-            if (!engine.Chart.IsDummy && (isOverProgressBar || engine.IsDraggingProgress))
+            if (engine.TotalDuration > 0 && (isOverProgressBar || engine.IsDraggingProgress))
             {
                 float frac = engine.IsDraggingProgress ? engine.DragFrac : Math.Clamp((mouse.X - 203f) / 185f, 0f, 1f);
                 int hoverMeasure = 0;

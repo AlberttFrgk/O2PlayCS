@@ -65,7 +65,7 @@ namespace O2Play
     public class BmsChart
     {
         public string FilePath { get; set; } = string.Empty;
-        public bool IsDummy { get; set; } = false;
+        public bool IsDummy => Notes.Count == 0;
         public BmsHeader Header { get; set; } = new BmsHeader();
         public List<BmsMeasure> Measures { get; set; } = new List<BmsMeasure>();
         public Dictionary<int, double> MeasureFactors { get; set; } = new Dictionary<int, double>();
@@ -548,29 +548,26 @@ namespace O2Play
             chart.Notes.Sort((a, b) => a.Tick.CompareTo(b.Tick));
 
             // Resolve 7-Key Lane Assignment
-            if (!chart.IsDummy)
+            var presentChannels = new HashSet<int>();
+            foreach (var n in chart.Notes)
             {
-                var presentChannels = new HashSet<int>();
-                foreach (var n in chart.Notes)
+                if ((n.Channel >= 11 && n.Channel <= 19) || (n.Channel >= 51 && n.Channel <= 59))
                 {
-                    if ((n.Channel >= 11 && n.Channel <= 19) || (n.Channel >= 51 && n.Channel <= 59))
-                    {
-                        int baseChan = n.Channel >= 50 ? n.Channel - 40 : n.Channel;
-                        presentChannels.Add(baseChan);
-                    }
+                    int baseChan = n.Channel >= 50 ? n.Channel - 40 : n.Channel;
+                    presentChannels.Add(baseChan);
                 }
+            }
 
-                bool hasCh19 = presentChannels.Contains(19);
-                bool hasCh18 = presentChannels.Contains(18);
-                bool hasCh17 = presentChannels.Contains(17);
-                bool hasCh16 = presentChannels.Contains(16);
+            bool hasCh19 = presentChannels.Contains(19);
+            bool hasCh18 = presentChannels.Contains(18);
+            bool hasCh17 = presentChannels.Contains(17);
+            bool hasCh16 = presentChannels.Contains(16);
 
-                foreach (var n in chart.Notes)
+            foreach (var n in chart.Notes)
+            {
+                if (n.Channel > 0)
                 {
-                    if (n.Channel > 0)
-                    {
-                        n.Lane = ResolveLane(n.Channel, hasCh19, hasCh18, hasCh17, hasCh16);
-                    }
+                    n.Lane = ResolveLane(n.Channel, hasCh19, hasCh18, hasCh17, hasCh16);
                 }
             }
 

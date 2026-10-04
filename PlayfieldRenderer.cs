@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Numerics;
 using Raylib_cs;
 using Color = Raylib_cs.Color;
@@ -292,7 +292,7 @@ namespace O2Play
             if (engine.DrawCombo && engine.Combo > 0 && engine.TexCombo.Id > 0)
             {
                 const double positionStart = 30.0;
-                double t = Math.Clamp(engine.ComboTimer / 0.10, 0.0, 1.0);
+                double t = Math.Clamp(engine.ComboTimer / AnimationManager.ComboAnimDuration, 0.0, 1.0);
                 double t_m_1 = t - 1.0;
                 double easeOut = 1.0 + (t_m_1 * t_m_1 * t_m_1);
                 double currentPosition = positionStart * (1.0 - easeOut);
