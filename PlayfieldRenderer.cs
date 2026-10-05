@@ -6,7 +6,6 @@ using Rectangle = Raylib_cs.Rectangle;
 
 namespace O2Play
 {
-    // Renders playfield background, target bar, measure lines, notes, explosions, and combos.
     public class PlayfieldRenderer
     {
         public const int HitY = 480;
@@ -71,7 +70,6 @@ namespace O2Play
 
         public void Draw(GameEngine engine)
         {
-            // Playfield background (solid 204 x 600 at 0, 0)
             if (engine.TexPlayfield.Id > 0)
             {
                 Raylib.DrawTexture(engine.TexPlayfield, 0, 0, Color.White);
@@ -85,7 +83,6 @@ namespace O2Play
                 Raylib.DrawTexturePro(engine.TexTargetBar, tbSrc, tbDest, Vector2.Zero, 0f, Color.White);
             }
 
-            // Measure lines (scrolling on top of playfield background and target bar)
             double currentTick = engine.Chart.SecondsToTick(engine.CurrentTime);
             float tickScale = (float)(engine.ScrollSpeed / 192.0);
 
@@ -114,7 +111,6 @@ namespace O2Play
                 }
             }
 
-            // Key light effect (additive blend behind notes)
             bool anyLightActive = false;
             for (int i = 0; i < 7; i++)
             {
@@ -133,7 +129,6 @@ namespace O2Play
                 Raylib.EndBlendMode();
             }
 
-            // Notes (short notes 7px height, long notes stretched body + 7px head)
             foreach (var note in engine.Chart.Notes)
             {
                 if (note.IsHit || note.IsKeysound) continue;
@@ -180,15 +175,12 @@ namespace O2Play
                         int headBottom = (currentTick >= note.Tick) ? HitY : HitY - (int)(deltaTicks * tickScale);
                         int headTop = headBottom - NoteHeight;
 
-                        // Long note tail cap (release point)
                         int tailBottom = HitY - (int)(tailDeltaTicks * tickScale);
                         int tailTop = tailBottom - NoteHeight;
 
-                        // Tail cap at top (7px)
                         Rectangle tailDest = new Rectangle(noteX, tailTop, noteW, NoteHeight);
                         Raylib.DrawTexturePro(engine.TexNote, headSource, tailDest, Vector2.Zero, 0f, Color.White);
 
-                        // Head at bottom (7px)
                         Rectangle headDest = new Rectangle(noteX, headTop, noteW, NoteHeight);
                         Raylib.DrawTexturePro(engine.TexNote, headSource, headDest, Vector2.Zero, 0f, Color.White);
 
@@ -204,7 +196,6 @@ namespace O2Play
                     }
                     else
                     {
-                        // Short note: strictly 7px height
                         int noteBottom = HitY - (int)(deltaTicks * tickScale);
                         int noteY = noteBottom - NoteHeight;
                         Rectangle noteDest = new Rectangle(noteX, noteY, noteW, NoteHeight);
@@ -219,7 +210,6 @@ namespace O2Play
                 }
             }
 
-            // Pressed keys at bottom (key starts at Y = 480)
             if (engine.TexKeyDown.Id > 0)
             {
                 for (int i = 0; i < 7; i++)
@@ -231,12 +221,10 @@ namespace O2Play
                 }
             }
 
-            // Additive blending visual effects
             Raylib.BeginBlendMode(BlendMode.Additive);
 
             if (engine.ShowEffect)
             {
-                // Hit Effect (explosion on receptor)
                 for (int i = 0; i < 7; i++)
                 {
                     if (engine.HitEffectTimers[i] > 0 && engine.TexHitEffect.Id > 0)
@@ -277,7 +265,7 @@ namespace O2Play
                 }
             }
 
-            // Judgement (Centered at X=100, Y=360, O2Jam Replication by Albert Frengki)
+            // Judgement centered at X=100, Y=360
             if (engine.DrawJudge && engine.TexJudgement.Id > 0)
             {
                 float w = engine.TexJudgement.Width * engine.JudgeSize;
@@ -288,7 +276,7 @@ namespace O2Play
                 Raylib.DrawTexturePro(engine.TexJudgement, src, dest, origin, 0f, Color.White);
             }
 
-            // Combo Number (Centered at X=100, Resting Y=240, O2Jam Replication by Albert Frengki)
+            // Combo number resting at Y=240
             if (engine.DrawCombo && engine.Combo > 0 && engine.TexCombo.Id > 0)
             {
                 const double positionStart = 30.0;

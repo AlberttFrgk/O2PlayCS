@@ -6,7 +6,6 @@ namespace O2Play
 {
     public class GameEngine : IDisposable
     {
-        // Dedicated Manager instances
         public ChartManager ChartMgr { get; }
         public AudioManager AudioMgr { get; }
         public ScoreManager ScoreMgr { get; } = new();
@@ -17,7 +16,6 @@ namespace O2Play
         public GraphicsManager Graphics { get; }
         public GraphicsManager Interface => Graphics;
 
-        // Backward-compatible delegates to Managers
         public BmsChart Chart { get => ChartMgr.Chart; private set => ChartMgr.Chart = value; }
         public AudioEngine Audio => AudioMgr.Audio;
 
@@ -89,7 +87,6 @@ namespace O2Play
 
         public bool IsWindowFocused { get; set; } = true;
 
-        // Exposed states for GameInterface and callers
         public float[] KeyHitTimers => Animation.KeyHitTimers;
         public int[] KeyHitFrames => Animation.KeyHitFrames;
         public int[] LightFrames => Animation.LightFrames;
@@ -157,7 +154,6 @@ namespace O2Play
             // Master clock advances purely via delta-time and music speed
             CurrentTime += dt * MusicSpeed;
 
-            // Stop playback when song ends
             if (TotalDuration > 0 && CurrentTime >= TotalDuration + 1.0)
             {
                 CurrentTime = TotalDuration;
@@ -167,13 +163,10 @@ namespace O2Play
                 return;
             }
 
-            // Update Judgement, Combo, and Receptor animation timers
             Animation.Update(dt, Combo);
 
             // Background keysounds (Lane 0) play automatically for backing audio
             JudgeMgr.ProcessBackgroundNotes(Chart, CurrentTime, AudioMgr, IsPlaying);
-
-            // Autoplay / Hit processing (permanent preview autoplay)
             JudgeMgr.ProcessAutoplay(Chart, CurrentTime, ScoreMgr, Animation, AudioMgr);
         }
 

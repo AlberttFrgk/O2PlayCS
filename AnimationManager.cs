@@ -2,7 +2,6 @@ using System;
 
 namespace O2Play
 {
-    // Manages gameplay animations, judgements, combo effects, and lane lighting.
     public class AnimationManager
     {
         private readonly float[] _keyHitTimers = new float[7];
@@ -13,16 +12,13 @@ namespace O2Play
         private readonly bool[] _laneHolding = new bool[7];
         private readonly bool[] _keyPressed = new bool[7];
 
-        // Judgement animation
         private bool _drawJudge = false;
         private double _judgeTimer = 0.0;
         private float _judgeSize = 0.4f;
 
-        // Combo animation
         private bool _drawCombo = false;
         private double _comboTimer = 0.0;
 
-        // Exposed states
         public float[] KeyHitTimers => _keyHitTimers;
         public int[] KeyHitFrames => _keyHitFrames;
         public int[] LightFrames => _lightFrames;
@@ -105,7 +101,6 @@ namespace O2Play
 
         public void Update(float dt, int combo)
         {
-            // Update Judgement animation
             if (_drawJudge)
             {
                 _judgeSize = Math.Clamp(_judgeSize + (dt * 6.0f), 0.4f, 1.0f);
@@ -115,7 +110,6 @@ namespace O2Play
                 }
             }
 
-            // Update Combo animation
             if (_drawCombo && combo > 0)
             {
                 _comboTimer += dt;

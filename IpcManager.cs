@@ -15,7 +15,6 @@ namespace O2Play
         public Win32WindowWrapper(IntPtr handle) => Handle = handle;
     }
 
-    // Manages single-instance mutex, named pipe IPC, and Win32 foreground window management.
     public static class IpcManager
     {
         public const string MutexName = "O2Play_SingleInstance_Mutex";

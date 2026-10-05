@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 namespace O2Play
 {
-    // Manages rhythm gameplay judge evaluation, hit windows, and autoplay timing.
     public class JudgeManager
     {
         public const double HitWindowSeconds = 0.180;
@@ -17,7 +16,6 @@ namespace O2Play
             {
                 int laneIdx = note.Lane - 1;
 
-                // Background keysounds (Lane 0) play automatically for backing audio
                 if (note.IsKeysound || laneIdx < 0 || laneIdx > 6)
                 {
                     if (!note.IsHit && currentTime >= note.TimeSeconds)
@@ -53,7 +51,6 @@ namespace O2Play
 
                 if (note.IsLongNote)
                 {
-                    // Start holding
                     if (!note.IsHolding && !note.IsHit && currentTime >= note.TimeSeconds && currentTime < note.TimeSeconds + note.DurationSeconds)
                     {
                         note.IsHolding = true;
@@ -70,12 +67,10 @@ namespace O2Play
                             audioMgr.PlayKeysound(note.SoundIndex, note.Volume, note.Pan);
                         }
                     }
-                    // While holding
                     else if (note.IsHolding && currentTime < note.TimeSeconds + note.DurationSeconds)
                     {
                         animation.KeyHitTimers[laneIdx] = 0.1f;
                     }
-                    // Finish holding
                     else if (note.IsHolding && currentTime >= note.TimeSeconds + note.DurationSeconds)
                     {
                         note.IsHolding = false;
@@ -182,10 +177,8 @@ namespace O2Play
         {
             if (chart == null || laneIdx < 0 || laneIdx > 6) return;
 
-            // Key down: receptor pressed feedback
             animation.KeyHitTimers[laneIdx] = 0.12f;
 
-            // Find the earliest unhit note in this lane
             BmsNote? target = null;
             double minTime = double.MaxValue;
             foreach (var note in chart.Notes)
@@ -251,7 +244,6 @@ namespace O2Play
 
                     if (currentTime >= note.TimeSeconds + note.DurationSeconds)
                     {
-                        // Long note completed
                         note.IsHolding = false;
                         note.IsHit = true;
                         scoreMgr.AddHit();
@@ -280,7 +272,6 @@ namespace O2Play
 
                     if (currentTime < note.TimeSeconds + note.DurationSeconds - EarlyReleaseToleranceSeconds)
                     {
-                        // Dropped early: break combo
                         if (scoreMgr.Combo > 0)
                         {
                             scoreMgr.BreakCombo();

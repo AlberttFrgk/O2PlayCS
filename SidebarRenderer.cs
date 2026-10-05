@@ -66,32 +66,26 @@ namespace O2Play
 
         public void Draw(GameEngine engine)
         {
-            // Panel background (&H806000& -> RGB(0, 96, 128))
             Color panelBg = new Color(0, 96, 128, 255);
             Raylib.DrawRectangle(200, 0, 191, 600, panelBg);
 
-            // Left separator border (X = 200)
             Raylib.DrawRectangle(200, 0, 1, 600, new Color(0, 48, 64, 255));
             Raylib.DrawRectangle(201, 0, 1, 600, new Color(0, 128, 168, 255));
 
-            // Outer frame borders
             Raylib.DrawRectangle(202, 0, 189, 1, new Color(0, 128, 168, 255));
             Raylib.DrawRectangle(390, 0, 1, 600, new Color(0, 48, 64, 255));
             Raylib.DrawRectangle(202, 599, 189, 1, new Color(0, 48, 64, 255));
 
-            // Frame Header (jcFrames1 Header, Y = 2 to 36)
             string title = !string.IsNullOrEmpty(engine.Chart.Header.Title) ? engine.Chart.Header.Title : "Load Chart File";
             UpdateHeaderTexture(title);
             if (_texHeader.HasValue)
                 Raylib.DrawTexture(_texHeader.Value, 202, 2, Color.White);
 
-            // Calculate dynamic values
             double currentBpm = engine.Chart.Notes.Count == 0 ? 0.0 : engine.Chart.GetBpmAt(engine.CurrentTime);
             int currentMeasure = engine.TotalDuration <= 0 ? 0 : engine.Chart.SecondsToMeasure(engine.CurrentTime);
             TimeSpan timeSpan = TimeSpan.FromSeconds(engine.TotalDuration <= 0 ? 0 : engine.CurrentTime);
             string timeStr = timeSpan.ToString(@"mm\:ss");
 
-            // Text boxes (X = 202, W = 187, H = 19, Y starts at 40, step 32)
             UpdateBoxTexture(ref _texGenre, ref _lastGenre, "   Genre: " + (engine.Chart.Header.Genre ?? ""), 187, 19);
             if (_texGenre.HasValue) Raylib.DrawTexture(_texGenre.Value, 202, 40, Color.White);
 
@@ -130,15 +124,11 @@ namespace O2Play
             UpdateCheckboxTexture(ref _texAutoCheck, ref _lastEffectCheck, "   EFFECT", engine.ShowEffect, 187, 19);
             if (_texAutoCheck.HasValue) Raylib.DrawTexture(_texAutoCheck.Value, 202, 360, Color.White);
 
-            // Progress Bar (Y = 392, H = 19, consistent 32px step)
             DrawProgressBar(202, 392, 187, 19, engine);
-
-            // Lower panel frame (Y = 424 to 595, H = 171)
             DrawLowerPanel(202, 424, 187, 171, engine);
 
             Vector2 mouse = Raylib.GetMousePosition();
 
-            // Hover outline for OJN Difficulty buttons (Y = 431..455)
             if (engine.Chart.IsOjn && mouse.Y >= 431 && mouse.Y <= 455)
             {
                 if (mouse.X >= 208 && mouse.X <= 263 && engine.Chart.AvailableDifficulties[(int)OjnDifficulty.EX] && engine.Chart.CurrentDifficulty != OjnDifficulty.EX)
@@ -155,7 +145,6 @@ namespace O2Play
                 }
             }
 
-            // Tooltip (PicTip) if mouse hovers over progress bar or while dragging (placed on top of progress bar at Y=376)
             bool isOverProgressBar = mouse.X >= 200 && mouse.X <= 391 && mouse.Y >= 388 && mouse.Y <= 415;
             if (Environment.GetEnvironmentVariable("O2_TEST_HOVER") == "1")
             {
@@ -197,15 +186,12 @@ namespace O2Play
 
         private void DrawProgressBar(int x, int y, int w, int h, GameEngine engine)
         {
-            // Background (&H40& -> dark red)
             Raylib.DrawRectangle(x, y, w, h, new Color(64, 0, 0, 255));
-            // 1px border
             Raylib.DrawRectangle(x, y, w, 1, new Color(128, 128, 128, 255));
             Raylib.DrawRectangle(x, y + h - 1, w, 1, new Color(128, 128, 128, 255));
             Raylib.DrawRectangle(x, y, 1, h, new Color(128, 128, 128, 255));
             Raylib.DrawRectangle(x + w - 1, y, 1, h, new Color(128, 128, 128, 255));
 
-            // Fill with bright red (&HFF&)
             float progress = engine.IsDraggingProgress ? engine.DragFrac : engine.GetMeasureProgress();
             int fillW = (int)(progress * (w - 2));
             if (fillW > 0)
@@ -221,7 +207,7 @@ namespace O2Play
                 _lastLowerDifficulty = engine.Chart.CurrentDifficulty;
                 UnloadTex(ref _texLowerPanel);
 
-                using (var bmp = new System.Drawing.Bitmap(w, h))
+                using (var bmp = CreateBitmap(w, h))
                 using (var g = System.Drawing.Graphics.FromImage(bmp))
                 {
                     g.Clear(System.Drawing.Color.FromArgb(0, 80, 110));
@@ -230,15 +216,14 @@ namespace O2Play
                         g.DrawRectangle(borderPen, 0, 0, w - 1, h - 1);
                     }
 
-                    using (var fontTitle = new System.Drawing.Font("Arial", 8.5f, System.Drawing.FontStyle.Bold))
-                    using (var fontText = new System.Drawing.Font("Arial", 7.5f, System.Drawing.FontStyle.Regular))
-                    using (var fontBtn = new System.Drawing.Font("Arial", 7.5f, System.Drawing.FontStyle.Bold))
+                    using (var fontTitle = CreateFont("Arial", 8.5f, System.Drawing.FontStyle.Bold))
+                    using (var fontText = CreateFont("Arial", 7.5f, System.Drawing.FontStyle.Regular))
+                    using (var fontBtn = CreateFont("Arial", 7.5f, System.Drawing.FontStyle.Bold))
                     using (var brushTitle = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(200, 230, 255)))
                     using (var brushText = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(170, 200, 220)))
                     {
                         if (engine.Chart.IsOjn)
                         {
-                            // 3 Difficulty buttons: EX, NX, HX at top of lower panel (Y = 7 to 31, H = 24)
                             int[] btnX = { 6, 66, 126 };
                             int btnW = 55;
                             int btnH = 24;
@@ -278,14 +263,13 @@ namespace O2Play
                                 }
                             }
 
-                            // Divider line
                             using (var divPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(0, 60, 85)))
                             {
                                 g.DrawLine(divPen, 6, 36, w - 7, 36);
                             }
                         }
 
-                        // Shortcuts legend - vertically centered in available space
+                        // Shortcuts legend centered vertically in panel
                         var shortcutLines = new List<(string text, bool isTitle)>();
                         shortcutLines.Add(("Shortcuts:", true));
                         shortcutLines.Add(("[O]        Open BMS/OJN", false));
@@ -334,23 +318,22 @@ namespace O2Play
 
                 int tipH = 15;
                 int tipW;
-                using (var font = new System.Drawing.Font("Arial", 7.5f, System.Drawing.FontStyle.Bold))
-                using (var tempBmp = new System.Drawing.Bitmap(1, 1))
+                using (var font = CreateFont("Arial", 7.5f, System.Drawing.FontStyle.Bold))
+                using (var tempBmp = CreateBitmap(1, 1))
                 using (var gTemp = System.Drawing.Graphics.FromImage(tempBmp))
                 {
                     var size = gTemp.MeasureString(text, font);
                     tipW = Math.Max(24, (int)Math.Ceiling(size.Width) + 8);
                 }
 
-                using var bmp = new System.Drawing.Bitmap(tipW, tipH);
+                using var bmp = CreateBitmap(tipW, tipH);
                 using var g = System.Drawing.Graphics.FromImage(bmp);
-                // Solid light yellow background (&H80FFFF& -> RGB(255, 255, 180))
                 g.Clear(System.Drawing.Color.FromArgb(255, 255, 255, 180));
 
                 using var borderPen = new System.Drawing.Pen(System.Drawing.Color.Black);
                 g.DrawRectangle(borderPen, 0, 0, tipW - 1, tipH - 1);
 
-                using var fontText = new System.Drawing.Font("Arial", 7.5f, System.Drawing.FontStyle.Bold);
+                using var fontText = CreateFont("Arial", 7.5f, System.Drawing.FontStyle.Bold);
                 using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.Black);
                 using var sf = new System.Drawing.StringFormat
                 {
@@ -368,7 +351,6 @@ namespace O2Play
                 int tipH = _texTooltip.Value.Height;
                 int tipX = mouseX - (tipW / 2);
 
-                // Keep tooltip on-screen (window width is 391) and avoid min > max in Math.Clamp
                 int minX = (tipW <= 187) ? 202 : 2;
                 int maxX = Math.Max(minX, (tipW <= 187) ? (389 - tipW) : (391 - tipW - 2));
                 tipX = Math.Clamp(tipX, minX, maxX);
@@ -386,7 +368,7 @@ namespace O2Play
             _lastHeader = text;
 
             int w = 187, h = 34;
-            using (var bmp = new System.Drawing.Bitmap(w, h))
+            using (var bmp = CreateBitmap(w, h))
             using (var g = System.Drawing.Graphics.FromImage(bmp))
             {
                 using (var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
@@ -403,7 +385,7 @@ namespace O2Play
                     g.DrawRectangle(borderPen, 0, 0, w - 1, h - 1);
                 }
 
-                using (var font = new System.Drawing.Font("Arial", 8.5f, System.Drawing.FontStyle.Bold))
+                using (var font = CreateFont("Arial", 8.5f, System.Drawing.FontStyle.Bold))
                 using (var textBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(240, 245, 255)))
                 using (var sf = new System.Drawing.StringFormat { Alignment = System.Drawing.StringAlignment.Center, LineAlignment = System.Drawing.StringAlignment.Center, Trimming = System.Drawing.StringTrimming.EllipsisCharacter })
                 {
@@ -420,20 +402,17 @@ namespace O2Play
             if (text == lastText && tex.HasValue) return;
             lastText = text;
 
-            using (var bmp = new System.Drawing.Bitmap(w, h))
+            using (var bmp = CreateBitmap(w, h))
             using (var g = System.Drawing.Graphics.FromImage(bmp))
             {
-                // Background (&H40& -> RGB(64, 0, 0))
                 g.Clear(System.Drawing.Color.FromArgb(64, 0, 0));
 
-                // 1px subtle dark border
                 using (var borderPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(32, 0, 0)))
                 {
                     g.DrawRectangle(borderPen, 0, 0, w - 1, h - 1);
                 }
 
-                // Text (&HC0C0C0& -> RGB(192, 192, 192), 8.5pt Bold)
-                using (var font = new System.Drawing.Font("Arial", 8.5f, System.Drawing.FontStyle.Bold))
+                using (var font = CreateFont("Arial", 8.5f, System.Drawing.FontStyle.Bold))
                 using (var textBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(192, 192, 192)))
                 {
                     g.DrawString(text, font, textBrush, new System.Drawing.PointF(0, 2));
@@ -449,10 +428,9 @@ namespace O2Play
             if (isChecked == lastCheck && tex.HasValue) return;
             lastCheck = isChecked;
 
-            using (var bmp = new System.Drawing.Bitmap(w, h))
+            using (var bmp = CreateBitmap(w, h))
             using (var g = System.Drawing.Graphics.FromImage(bmp))
             {
-                // Background (&H40& -> RGB(64, 0, 0))
                 g.Clear(System.Drawing.Color.FromArgb(64, 0, 0));
 
                 using (var borderPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(32, 0, 0)))
@@ -460,13 +438,12 @@ namespace O2Play
                     g.DrawRectangle(borderPen, 0, 0, w - 1, h - 1);
                 }
 
-                using (var font = new System.Drawing.Font("Arial", 8.5f, System.Drawing.FontStyle.Bold))
+                using (var font = CreateFont("Arial", 8.5f, System.Drawing.FontStyle.Bold))
                 using (var textBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(192, 192, 192)))
                 {
                     g.DrawString(label, font, textBrush, new System.Drawing.PointF(0, 2));
                 }
 
-                // Checkbox square on right (aligned with same margin from right border as text has from left)
                 int boxSize = 13;
                 int boxX = w - 27;
                 int boxY = 3;
@@ -490,6 +467,22 @@ namespace O2Play
                 UnloadTex(ref tex);
                 tex = BitmapToTexture2D(bmp);
             }
+        }
+
+        // Locks GDI+ rendering to 120 DPI (125% Windows scaling) across all displays
+        private const float TargetDpi = 120f;
+
+        private static System.Drawing.Bitmap CreateBitmap(int w, int h)
+        {
+            var bmp = new System.Drawing.Bitmap(w, h);
+            bmp.SetResolution(TargetDpi, TargetDpi);
+            return bmp;
+        }
+
+        private static System.Drawing.Font CreateFont(string familyName, float pointSize, System.Drawing.FontStyle style)
+        {
+            float pixelSize = pointSize * (TargetDpi / 72f);
+            return new System.Drawing.Font(familyName, pixelSize, style, System.Drawing.GraphicsUnit.Pixel);
         }
 
         public unsafe Texture2D BitmapToTexture2D(System.Drawing.Bitmap bmp)

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 namespace O2Play
 {
-    // Manages chart state, timing, scroll speed, measures, and difficulty cycling.
     public class ChartManager
     {
         public BmsChart Chart { get; set; } = null!;
@@ -26,7 +25,6 @@ namespace O2Play
             }
         }
 
-        // Calculates note scroll speed scaled to common BPM.
         public double BaseScrollSpeed => 192.0 * PlaySpeed * (480.0 * 0.5 * (1920.0 / 1366.0) / 112.0);
 
         public double ScrollSpeed

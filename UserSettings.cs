@@ -50,7 +50,6 @@ namespace O2Play
                     }
                     catch
                     {
-                        // Ignore json parse error
                     }
 
                     Save(settings);
@@ -62,7 +61,6 @@ namespace O2Play
             }
             catch
             {
-                // Fallback to defaults
             }
 
             _cached = settings;
@@ -161,7 +159,6 @@ namespace O2Play
             }
             catch
             {
-                // Silently ignore if cannot write
             }
         }
     }

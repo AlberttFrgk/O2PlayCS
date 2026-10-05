@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 namespace O2Play
 {
-    // Manages scoring, combo tracking, and max combo records using O2Jam formulas.
     public class ScoreManager
     {
         public int Score { get; set; }

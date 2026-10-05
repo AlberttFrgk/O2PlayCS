@@ -7,7 +7,6 @@ using Rectangle = Raylib_cs.Rectangle;
 
 namespace O2Play
 {
-    // Master Graphics Coordinator orchestrating PlayfieldRenderer and SidebarRenderer.
     public class GraphicsManager : IDisposable
     {
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
@@ -44,7 +43,6 @@ namespace O2Play
                 bool hasIntel = false;
                 bool hasDiscrete = false;
 
-                // Enumerate installed display adapters
                 for (uint i = 0; ; i++)
                 {
                     var d = new DISPLAY_DEVICE();
@@ -63,7 +61,6 @@ namespace O2Play
 
                     bool isIntel = name.Contains("Intel", StringComparison.OrdinalIgnoreCase);
 
-                    // Check for discrete GPU capabilities
                     bool isDgpu = isNvidia ||
                                   (isAmd && (name.Contains("RX", StringComparison.OrdinalIgnoreCase) ||
                                              name.Contains("Pro", StringComparison.OrdinalIgnoreCase) ||
@@ -83,7 +80,6 @@ namespace O2Play
                 // Generic Windows compatibility shim for modern GPU scheduling
                 Environment.SetEnvironmentVariable("SHIM_MCCOMPAT", "0x000000001");
 
-                // Vendor-specific driver optimizations based on detected hardware
                 if (hasNvidia)
                 {
                     Environment.SetEnvironmentVariable("__NV_PRIME_RENDER_OFFLOAD", "1");
@@ -177,7 +173,6 @@ namespace O2Play
             _engine = engine;
         }
 
-        // Forward layout constants for full backward compatibility
         public const int HitY = PlayfieldRenderer.HitY;
         public const int NoteHeight = PlayfieldRenderer.NoteHeight;
         public const int KeyTopY = PlayfieldRenderer.KeyTopY;
@@ -223,7 +218,6 @@ namespace O2Play
         }
     }
 
-    // Merged alias for backward compatibility
     public class GameInterface : GraphicsManager
     {
         public GraphicsManager Graphics => this;

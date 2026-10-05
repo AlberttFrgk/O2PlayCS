@@ -440,7 +440,6 @@ namespace O2Play
 
         public static void CalculateTimings(BmsChart chart, List<(int measure, double position, double bpm)>? rawBpmEvents = null)
         {
-            // Determine maximum measure index
             int maxMeasure = 0;
             foreach (var note in chart.Notes)
             {
@@ -458,7 +457,7 @@ namespace O2Play
                 }
             }
 
-            // Build measure chain in tick space (192 ticks per standard 4/4 measure)
+            // 192 ticks per standard 4/4 measure
             chart.Measures.Clear();
             double curTick = 0.0;
             for (int m = 0; m <= maxMeasure + 2; m++)
@@ -477,7 +476,6 @@ namespace O2Play
                 curTick = bmsM.EndTick;
             }
 
-            // Map notes to absolute ticks within their measures
             foreach (var note in chart.Notes)
             {
                 int mIdx = Math.Clamp(note.Measure, 0, chart.Measures.Count - 1);
@@ -485,7 +483,6 @@ namespace O2Play
                 note.Tick = m.StartTick + (note.Position * m.Ticks);
             }
 
-            // Build BPM change events list
             chart.BpmChanges.Clear();
             double initBpm = chart.Header.InitialBpm > 0 ? chart.Header.InitialBpm : 130.0;
             chart.Header.InitialBpm = initBpm;
@@ -509,7 +506,6 @@ namespace O2Play
 
             allBpmEvents.Sort((a, b) => a.Tick.CompareTo(b.Tick));
 
-            // Deduplicate BPM events at the exact same tick
             for (int i = 0; i < allBpmEvents.Count; i++)
             {
                 if (chart.BpmChanges.Count == 0 || Math.Abs(allBpmEvents[i].Tick - chart.BpmChanges[^1].Tick) > 0.001)
@@ -522,7 +518,6 @@ namespace O2Play
                 }
             }
 
-            // Calculate exact TimeSeconds for each BPM segment
             chart.BpmChanges[0].TimeSeconds = 0.0;
             for (int i = 1; i < chart.BpmChanges.Count; i++)
             {
@@ -531,23 +526,19 @@ namespace O2Play
                 chart.BpmChanges[i].TimeSeconds = chart.BpmChanges[i - 1].TimeSeconds + (deltaTicks / segTicksPerSec);
             }
 
-            // Calculate timing for all measures
             foreach (var m in chart.Measures)
             {
                 m.StartTimeSeconds = chart.TickToSeconds(m.StartTick);
                 m.DurationSeconds = chart.TickToSeconds(m.EndTick) - m.StartTimeSeconds;
             }
 
-            // Calculate timing for all notes
             foreach (var note in chart.Notes)
             {
                 note.TimeSeconds = chart.TickToSeconds(note.Tick);
             }
 
-            // Sort notes by Tick
             chart.Notes.Sort((a, b) => a.Tick.CompareTo(b.Tick));
 
-            // Resolve 7-Key Lane Assignment
             var presentChannels = new HashSet<int>();
             foreach (var n in chart.Notes)
             {

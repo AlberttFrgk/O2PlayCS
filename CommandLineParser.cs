@@ -3,7 +3,6 @@ using System.IO;
 
 namespace O2Play
 {
-    // Represents parsed command-line arguments.
     public class LaunchArguments
     {
         public bool IsStop { get; set; }

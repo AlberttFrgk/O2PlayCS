@@ -121,13 +121,11 @@ namespace O2Play
         {
             StartIpcServer();
 
-            // Ask / configure Windows GPU preference for High Performance Discrete GPU (dGPU) first
             GraphicsManager.InitializeGpuPreference();
 
             TimeBeginPeriod(1);
             try
             {
-                // High-precision frame pacing
                 Raylib.InitWindow(391, 600, "O2Viewer");
                 Raylib.SetExitKey(KeyboardKey.Null); // GameEngine handles Escape when window is focused
                 Raylib.SetTargetFPS(0);
@@ -138,7 +136,6 @@ namespace O2Play
                     IpcManager.SetAlwaysOnTop(GetHwnd(), true);
                 }
 
-                // Verify and log active OpenGL device/vendor
                 GraphicsManager.LogActiveGpu();
 
                 _audio = new AudioEngine();
@@ -169,19 +166,16 @@ namespace O2Play
 
                 while (!Raylib.WindowShouldClose())
                 {
-                    // Dequeue and process any commands sent by iBMSC or subsequent instances
                     while (_pendingIpcCommands.TryDequeue(out var ipcArgs))
                     {
                         ProcessCommandLineArgs(ipcArgs, isInitial: false);
                     }
 
-                    // Only exit on Escape when window is focused
                     if (Raylib.IsWindowFocused() && Raylib.IsKeyPressed(KeyboardKey.Escape))
                     {
                         break;
                     }
 
-                    // File Drag and Drop directly onto the Raylib OpenGL window
                     if (Raylib.IsFileDropped())
                     {
                         var dropped = Raylib.LoadDroppedFiles();
@@ -207,7 +201,6 @@ namespace O2Play
                         Raylib.UnloadDroppedFiles(dropped);
                     }
 
-                    // Process any pending file chosen via dialog, drag & drop, or command line
                     if (_pendingFileToLoad != null)
                     {
                         string file = _pendingFileToLoad;
@@ -217,7 +210,6 @@ namespace O2Play
                         LoadBmsFile(file, diff);
                     }
 
-                    // Background audio management: if on background or minimized, don't play audio
                     bool isWindowActive = Raylib.IsWindowFocused() && !Raylib.IsWindowMinimized();
 
                     if (!isWindowActive)

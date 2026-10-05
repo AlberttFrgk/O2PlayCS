@@ -56,7 +56,6 @@ namespace O2Play
             // Autoplay preview mode: ignore keyboard input for play keys
             Array.Clear(engine.Animation.KeyPressed, 0, 7);
 
-            // Hotkeys
             if (Raylib.IsKeyPressed(KeyboardKey.F1))
             {
                 engine.DecreasePlaySpeed();
@@ -82,7 +81,6 @@ namespace O2Play
                 engine.AudioMgr.UpdateSyncSettings();
             }
 
-            // Pause toggle using Space key
             if (Raylib.IsKeyPressed(KeyboardKey.Space))
             {
                 engine.IsPlaying = !engine.IsPlaying;
@@ -95,7 +93,6 @@ namespace O2Play
                 RequestOpenFile?.Invoke();
             }
 
-            // Mouse interactions
             Vector2 mouse = Raylib.GetMousePosition();
             bool isClick = Raylib.IsMouseButtonPressed(MouseButton.Left);
             bool isRightClick = Raylib.IsMouseButtonPressed(MouseButton.Right);
@@ -105,7 +102,6 @@ namespace O2Play
 
             if (isClick)
             {
-                // Difficulty buttons (OJN only): Lower Panel Y = 424 + 7..31 = 431..455
                 if (engine.Chart.IsOjn && mouse.Y >= 431 && mouse.Y <= 455)
                 {
                     if (mouse.X >= 208 && mouse.X <= 263)
@@ -121,35 +117,29 @@ namespace O2Play
                         engine.SelectOjnDifficulty(OjnDifficulty.HX);
                     }
                 }
-                // Row 2 (Notes): Y = 104..123, X = 202..389 -> cycle difficulty if OJN
                 else if (engine.Chart.IsOjn && mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 104 && mouse.Y <= 123)
                 {
                     engine.CycleOjnDifficulty();
                 }
-                // Row 7 (PlaySpeed): Y = 232..251, X = 202..389 -> cycle AvailableSpeeds
                 else if (mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 232 && mouse.Y <= 251)
                 {
                     engine.CyclePlaySpeed(reverse: false);
                 }
-                // Row 8 (MusicSpeed): Y = 264..283, X = 202..389 -> increase 0.1x
                 else if (mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 264 && mouse.Y <= 283)
                 {
                     engine.MusicSpeed = (engine.MusicSpeed >= 2.0f) ? 0.1f : (float)Math.Round(engine.MusicSpeed + 0.1f, 1);
                     engine.AudioMgr.UpdateSyncSettings();
                 }
-                // Check1 (KEY): Y = 296..315, X = 202..389
                 else if (mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 296 && mouse.Y <= 315)
                 {
                     engine.IsKeySoundEnabled = !engine.IsKeySoundEnabled;
                     engine.AudioMgr.UpdateSyncSettings();
                 }
-                // Check2 (BGM): Y = 328..347, X = 202..389
                 else if (mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 328 && mouse.Y <= 347)
                 {
                     engine.IsBgmEnabled = !engine.IsBgmEnabled;
                     engine.AudioMgr.UpdateSyncSettings();
                 }
-                // Check3 (Show Effect): Y = 360..379, X = 202..389
                 else if (mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 360 && mouse.Y <= 379)
                 {
                     engine.ShowEffect = !engine.ShowEffect;
@@ -157,17 +147,14 @@ namespace O2Play
             }
             else if (isRightClick)
             {
-                // Row 2 (Notes) right click: cycle difficulty backwards if OJN
                 if (engine.Chart.IsOjn && mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 104 && mouse.Y <= 123)
                 {
                     engine.CycleOjnDifficulty(reverse: true);
                 }
-                // PlaySpeed right click: cycle backwards
                 else if (mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 232 && mouse.Y <= 251)
                 {
                     engine.CyclePlaySpeed(reverse: true);
                 }
-                // MusicSpeed right click: decrease 0.1x
                 else if (mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 264 && mouse.Y <= 283)
                 {
                     engine.MusicSpeed = (engine.MusicSpeed <= 0.1f) ? 2.0f : (float)Math.Round(engine.MusicSpeed - 0.1f, 1);
@@ -176,7 +163,6 @@ namespace O2Play
             }
             else if (isMiddleClick)
             {
-                // Middle click: reset to default
                 if (mouse.X >= 202 && mouse.X <= 389 && mouse.Y >= 232 && mouse.Y <= 251)
                 {
                     engine.PlaySpeed = 2.0f;
@@ -188,7 +174,6 @@ namespace O2Play
                 }
             }
 
-            // Mouse wheel scroll support
             if (scrollDelta != 0 && mouse.X >= 202 && mouse.X <= 389)
             {
                 if (mouse.Y >= 232 && mouse.Y <= 251)
@@ -207,7 +192,7 @@ namespace O2Play
                 }
             }
 
-            // Mouse wheel scroll over progress bar or playfield: scroll through measures
+            // Measure scrolling via wheel
             if (scrollDelta != 0 && engine.TotalDuration > 0)
             {
                 bool isOverProgress = (mouse.X >= 200 && mouse.X <= 391 && mouse.Y >= 388 && mouse.Y <= 415);
@@ -227,7 +212,6 @@ namespace O2Play
                 }
             }
 
-            // Progress bar click/drag: Y = 388..415, X = 200..391 (disabled if no chart loaded)
             if (engine.TotalDuration > 0 && isClick && mouse.X >= 200 && mouse.X <= 391 && mouse.Y >= 388 && mouse.Y <= 415)
             {
                 _isDraggingProgress = true;
