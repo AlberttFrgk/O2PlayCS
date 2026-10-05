@@ -1,4 +1,5 @@
 # O2Play (O2Viewer)
+<img width="393" height="639" alt="asd" src="https://github.com/user-attachments/assets/78792df4-7cd9-4d96-b37a-0fccedcf67c7" />
 
 A modern, high-performance C# / .NET 10 reimplementation of the classic **O2Play / O2Viewer** rhythm game chart player and preview tool. Built with **Raylib** for hardware-accelerated OpenGL rendering and **Un4seen BASS** for sample-accurate audio playback.
 
