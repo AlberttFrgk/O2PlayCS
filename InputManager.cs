@@ -47,8 +47,8 @@ namespace O2Play
                 {
                     _isDraggingProgress = false;
                     engine.IsPlaying = _wasPlayingBeforeDrag;
-                    engine.SeekToFrac(_dragFrac);                          // device still paused: audio is armed/queued
-                    if (_wasPlayingBeforeDrag) engine.AudioMgr.Resume();   // ...and starts here, exactly once
+                    engine.SeekToFrac(_dragFrac);
+                    if (_wasPlayingBeforeDrag) engine.AudioMgr.Resume();
                 }
                 return;
             }
@@ -83,9 +83,16 @@ namespace O2Play
 
             if (Raylib.IsKeyPressed(KeyboardKey.Space))
             {
-                engine.IsPlaying = !engine.IsPlaying;
-                if (engine.IsPlaying) engine.AudioMgr.Resume();
-                else engine.AudioMgr.Pause();
+                if (engine.TotalDuration > 0 && engine.CurrentTime >= engine.TotalDuration)
+                {
+                    engine.SeekTo(0);
+                    engine.Resume();
+                }
+                else
+                {
+                    if (engine.IsPlaying) engine.Pause();
+                    else engine.Resume();
+                }
             }
 
             if (Raylib.IsKeyPressed(KeyboardKey.O))
@@ -192,7 +199,6 @@ namespace O2Play
                 }
             }
 
-            // Measure scrolling via wheel
             if (scrollDelta != 0 && engine.TotalDuration > 0)
             {
                 bool isOverProgress = (mouse.X >= 200 && mouse.X <= 391 && mouse.Y >= 388 && mouse.Y <= 415);
@@ -202,7 +208,13 @@ namespace O2Play
                 {
                     int currentMeasure = engine.Chart.SecondsToMeasure(engine.CurrentTime);
                     int nextMeasure = Math.Clamp(currentMeasure + (scrollDelta > 0 ? 1 : -1), 0, Math.Max(0, engine.Chart.Measures.Count - 1));
-                    if (engine.Chart.Measures.Count > nextMeasure)
+                    if (scrollDelta > 0 && currentMeasure == engine.Chart.Measures.Count - 1)
+                    {
+                        engine.SeekTo(engine.TotalDuration);
+                        _dragFrac = 1.0f;
+                        _lastSeekFrac = 1.0f;
+                    }
+                    else if (engine.Chart.Measures.Count > nextMeasure)
                     {
                         double targetTime = engine.Chart.Measures[nextMeasure].StartTimeSeconds;
                         engine.SeekTo(targetTime);
@@ -217,7 +229,7 @@ namespace O2Play
                 _isDraggingProgress = true;
                 _wasPlayingBeforeDrag = engine.IsPlaying;
                 _dragStartX = (int)mouse.X;
-                _dragFrac = Math.Clamp((mouse.X - 203f) / 185f, 0f, 1f);
+                _dragFrac = Math.Clamp((mouse.X - 203f) / 184f, 0f, 1f);
                 _lastSeekFrac = _dragFrac;
                 engine.AudioMgr.Pause();
                 engine.SeekToFrac(_dragFrac);
@@ -226,7 +238,7 @@ namespace O2Play
             {
                 if (isHeld)
                 {
-                    float newFrac = Math.Clamp((mouse.X - 203f) / 185f, 0f, 1f);
+                    float newFrac = Math.Clamp((mouse.X - 203f) / 184f, 0f, 1f);
                     if (Math.Abs(newFrac - _lastSeekFrac) > 0.0005f)
                     {
                         _dragFrac = newFrac;
@@ -237,11 +249,11 @@ namespace O2Play
                 else
                 {
                     _isDraggingProgress = false;
-                    _dragFrac = Math.Clamp((mouse.X - 203f) / 185f, 0f, 1f);
+                    _dragFrac = Math.Clamp((mouse.X - 203f) / 184f, 0f, 1f);
                     _lastSeekFrac = _dragFrac;
                     engine.IsPlaying = _wasPlayingBeforeDrag;
-                    engine.SeekToFrac(_dragFrac);                          // device still paused: audio is armed/queued
-                    if (_wasPlayingBeforeDrag) engine.AudioMgr.Resume();   // ...and starts here, exactly once
+                    engine.SeekToFrac(_dragFrac);
+                    if (_wasPlayingBeforeDrag) engine.AudioMgr.Resume();
                 }
             }
         }

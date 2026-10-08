@@ -156,7 +156,7 @@ namespace O2Play
             }
             if (engine.TotalDuration > 0 && (isOverProgressBar || engine.IsDraggingProgress))
             {
-                float frac = engine.IsDraggingProgress ? engine.DragFrac : Math.Clamp((mouse.X - 203f) / 185f, 0f, 1f);
+                float frac = engine.IsDraggingProgress ? engine.DragFrac : Math.Clamp((mouse.X - 203f) / 184f, 0f, 1f);
                 int hoverMeasure = 0;
                 if (engine.Chart.Measures.Count > 0)
                 {
@@ -192,8 +192,14 @@ namespace O2Play
             Raylib.DrawRectangle(x, y, 1, h, new Color(128, 128, 128, 255));
             Raylib.DrawRectangle(x + w - 1, y, 1, h, new Color(128, 128, 128, 255));
 
+            int maxFillW = w - 2;
             float progress = engine.IsDraggingProgress ? engine.DragFrac : engine.GetMeasureProgress();
-            int fillW = (int)(progress * (w - 2));
+            int fillW = (int)Math.Round(progress * maxFillW);
+            if (progress >= 0.995f || (engine.TotalDuration > 0 && engine.CurrentTime >= engine.TotalDuration - 0.05))
+            {
+                fillW = maxFillW;
+            }
+            fillW = Math.Clamp(fillW, 0, maxFillW);
             if (fillW > 0)
             {
                 Raylib.DrawRectangle(x + 1, y + 1, fillW, h - 2, Color.Red);
@@ -269,7 +275,6 @@ namespace O2Play
                             }
                         }
 
-                        // Shortcuts legend centered vertically in panel
                         var shortcutLines = new List<(string text, bool isTitle)>();
                         shortcutLines.Add(("Shortcuts:", true));
                         shortcutLines.Add(("[O]        Open BMS/OJN", false));

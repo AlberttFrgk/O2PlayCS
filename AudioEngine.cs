@@ -19,6 +19,24 @@ namespace O2Play
         private readonly List<int> _activeKeyChannels = new();
         private readonly Dictionary<int, float> _activeChannelFreqs = new();
         private readonly Dictionary<int, float> _activeChannelBaseVols = new();
+        private readonly Dictionary<int, int> _activeChannelSoundIndex = new();
+        private const BassFlags BASS_SAMCHAN_STREAM = (BassFlags)2;
+        private const BassFlags BASS_SAMCHAN_NEW = (BassFlags)1;
+        private const int MAX_SAMPLE = 65535;
+
+        private static int GetSampleChannel(int sampleHandle)
+        {
+            int ch = Bass.SampleGetChannel(sampleHandle, BASS_SAMCHAN_STREAM);
+            if (ch == 0)
+            {
+                ch = Bass.SampleGetChannel(sampleHandle, BASS_SAMCHAN_NEW);
+            }
+            if (ch == 0)
+            {
+                ch = Bass.SampleGetChannel(sampleHandle);
+            }
+            return ch;
+        }
 
         public class ArchiveAudioCache
         {
@@ -78,7 +96,7 @@ namespace O2Play
 
         private int _currentBgmIndex = -1;
         private int _bgmStream = 0;
-        private float _bgmBaseFreq = 44100f;
+        private float _bgmBaseFreq = 48000f;
         private GCHandle _pinnedBgmHandle;
 
         private bool _isBgmEnabled = true;
@@ -89,6 +107,8 @@ namespace O2Play
         // True when the current BGM stream is supposed to be audible at the current song position
         // (it may still be held back while the device is paused). Resume() only restarts BGM when this is set.
         private bool _bgmArmed = false;
+        private bool _bgmFinished = false;
+        private readonly SyncProcedure _bgmSyncEnd;
 
         // BGM (re)positioning requested while the device was paused; applied by Resume().
         private (int Index, double Offset, bool Play)? _pendingBgm = null;
@@ -105,12 +125,39 @@ namespace O2Play
 
         public double OutputLatencySeconds => 0.0;
 
+        public bool IsBgmFinished()
+        {
+            if (_bgmStream == 0 || _bgmFinished) return true;
+            if (Bass.ChannelIsActive(_bgmStream) == PlaybackState.Stopped)
+            {
+                _bgmFinished = true;
+                _bgmArmed = false;
+                return true;
+            }
+            long lenBytes = Bass.ChannelGetLength(_bgmStream);
+            if (lenBytes <= 0) return false;
+            long posBytes = Bass.ChannelGetPosition(_bgmStream);
+            if (posBytes < 0) return true;
+            long tailBytes = Bass.ChannelSeconds2Bytes(_bgmStream, 0.25);
+            if (posBytes >= (lenBytes - tailBytes))
+            {
+                _bgmFinished = true;
+                _bgmArmed = false;
+                return true;
+            }
+            return false;
+        }
+
         public double BgmPositionSeconds
         {
             get
             {
                 if (_bgmStream != 0 && Bass.ChannelIsActive(_bgmStream) == PlaybackState.Playing)
                 {
+                    if (IsBgmFinished())
+                    {
+                        return -1.0;
+                    }
                     long pos = Bass.ChannelGetPosition(_bgmStream);
                     if (pos >= 0)
                     {
@@ -132,7 +179,6 @@ namespace O2Play
                     Bass.ChannelSetAttribute(_bgmStream, ChannelAttribute.Frequency, _bgmBaseFreq * _musicSpeed);
                 }
 
-                // Update playing keysound frequencies in real-time
                 lock (_activeChannels)
                 {
                     for (int i = _activeChannels.Count - 1; i >= 0; i--)
@@ -207,15 +253,21 @@ namespace O2Play
 
         public AudioEngine()
         {
+            _bgmSyncEnd = (handle, channel, data, user) =>
+            {
+                _bgmFinished = true;
+                _bgmArmed = false;
+            };
+
             try
             {
                 // Low latency settings for rhythm precision (20ms buffer, 5ms update)
-                Bass.Configure(Configuration.DeviceBufferLength, 20);
-                Bass.Configure(Configuration.UpdatePeriod, 5);
+                Bass.Configure(Configuration.DeviceBufferLength, 16);
+                Bass.Configure(Configuration.UpdatePeriod, 4);
                 Bass.Configure((Configuration)50, 1); // BASS_CONFIG_DEV_NONSTOP
                 Bass.Configure(Configuration.FloatDSP, true);
 
-                if (!Bass.Init(-1, 44100, DeviceInitFlags.Default, IntPtr.Zero))
+                if (!Bass.Init(-1, 48000, DeviceInitFlags.Default, IntPtr.Zero))
                 {
                     if (Bass.LastError != Errors.Already)
                     {
@@ -278,22 +330,20 @@ namespace O2Play
             var info = new SampleInfo();
             if (Bass.SampleGetInfo(sample, info))
             {
-                if ((info.Flags & BassFlags.Loop) != 0)
-                {
-                    info.Flags &= ~BassFlags.Loop;
-                    Bass.SampleSetInfo(sample, info);
-                }
+                info.Max = MAX_SAMPLE;
+                info.Flags &= ~BassFlags.Loop;
+                Bass.SampleSetInfo(sample, info);
                 _sampleFrequencies[index] = info.Frequency;
             }
             else
             {
-                _sampleFrequencies[index] = 44100f;
+                _sampleFrequencies[index] = 48000f;
             }
         }
 
         public static byte[] CreateToneWav(double frequencyHz, double durationSec, double volume = 0.35)
         {
-            int sampleRate = 44100;
+            int sampleRate = 48000;
             int numSamples = (int)(sampleRate * durationSec);
             using var ms = new MemoryStream();
             using var writer = new BinaryWriter(ms);
@@ -304,8 +354,8 @@ namespace O2Play
             writer.Write(System.Text.Encoding.ASCII.GetBytes("WAVE"));
             writer.Write(System.Text.Encoding.ASCII.GetBytes("fmt "));
             writer.Write(16);
-            writer.Write((short)1); // PCM
-            writer.Write((short)1); // Mono
+            writer.Write((short)1);
+            writer.Write((short)1);
             writer.Write(sampleRate);
             writer.Write(sampleRate * 2);
             writer.Write((short)2);
@@ -326,8 +376,6 @@ namespace O2Play
             return ms.ToArray();
         }
 
-        // Exact match only. (The old "single sample archive => every index is BGM" shortcut made playable notes and
-        // unrelated bg notes look like BGM triggers, which broke seeking on one-sample OJMs.)
         public bool IsBgmTrack(int index) => _bgmTracks.ContainsKey(index) || _bgmBytes.ContainsKey(index);
 
         // Length of a loaded polyphonic sample in natural seconds (0 if unknown).
@@ -357,7 +405,6 @@ namespace O2Play
             {
                 if (!File.Exists(filePath)) return;
 
-                // Probe audio duration using BASS decode stream
                 int probe = Bass.CreateStream(filePath, 0, 0, BassFlags.Decode);
                 if (probe != 0)
                 {
@@ -365,7 +412,6 @@ namespace O2Play
                     double totalSec = Bass.ChannelBytes2Seconds(probe, lenBytes);
                     Bass.StreamFree(probe);
 
-                    // If duration is 15 seconds or longer, register as streaming BGM
                     if (totalSec >= 15.0)
                     {
                         _bgmTracks[index] = filePath;
@@ -374,8 +420,7 @@ namespace O2Play
                     }
                 }
 
-                // Load short audio (WAV, MP3, OGG) as low-latency sound sample
-                int sample = Bass.SampleLoad(filePath, 0, 0, 32, BassFlags.SampleOverrideLongestPlaying);
+                int sample = Bass.SampleLoad(filePath, 0, 0, MAX_SAMPLE, BassFlags.SampleOverrideLongestPlaying);
                 if (sample != 0)
                 {
                     RegisterSample(index, sample);
@@ -451,8 +496,7 @@ namespace O2Play
                     return;
                 }
 
-                // Load directly into low-latency polyphonic sample (no blocking decode probe)
-                int sample = Bass.SampleLoad(data, 0, data.Length, 32, BassFlags.SampleOverrideLongestPlaying);
+                int sample = Bass.SampleLoad(data, 0, data.Length, MAX_SAMPLE, BassFlags.SampleOverrideLongestPlaying);
                 if (sample != 0)
                 {
                     _contentHashToSample[hash] = sample;
@@ -520,11 +564,22 @@ namespace O2Play
 
                     newArchive.BgmBytes[index] = data;
                     newArchive.BgmDurations[index] = Math.Max(totalSec, 0.0);
+
+                    int sampleHandle = Bass.SampleLoad(data, 0, data.Length, MAX_SAMPLE, BassFlags.SampleOverrideLongestPlaying);
+                    if (sampleHandle != 0)
+                    {
+                        newArchive.SampleHandles[index] = sampleHandle;
+                        var info = new SampleInfo();
+                        if (Bass.SampleGetInfo(sampleHandle, info))
+                        {
+                            newArchive.SampleFrequencies[index] = (float)info.Frequency;
+                        }
+                    }
                 }
             }
             else
             {
-                // Keysounded O2Jam: load all samples directly as polyphonic BASS samples (zero blocking decode probe)
+                // Keysounded O2Jam: all samples are polyphonic audio samples; no fake BGM track
                 foreach (var kvp in samples)
                 {
                     int index = kvp.Key;
@@ -542,12 +597,12 @@ namespace O2Play
                         }
                         else
                         {
-                            newArchive.SampleFrequencies[index] = 44100f;
+                            newArchive.SampleFrequencies[index] = 48000f;
                         }
                         continue;
                     }
 
-                    int sampleHandle = Bass.SampleLoad(data, 0, data.Length, 32, BassFlags.SampleOverrideLongestPlaying);
+                    int sampleHandle = Bass.SampleLoad(data, 0, data.Length, MAX_SAMPLE, BassFlags.SampleOverrideLongestPlaying);
                     if (sampleHandle != 0)
                     {
                         newArchive.ContentHashToSample[hash] = sampleHandle;
@@ -556,16 +611,14 @@ namespace O2Play
                         var info = new SampleInfo();
                         if (Bass.SampleGetInfo(sampleHandle, info))
                         {
-                            if ((info.Flags & BassFlags.Loop) != 0)
-                            {
-                                info.Flags &= ~BassFlags.Loop;
-                                Bass.SampleSetInfo(sampleHandle, info);
-                            }
+                            info.Max = MAX_SAMPLE;
+                            info.Flags &= ~BassFlags.Loop;
+                            Bass.SampleSetInfo(sampleHandle, info);
                             newArchive.SampleFrequencies[index] = (float)info.Frequency;
                         }
                         else
                         {
-                            newArchive.SampleFrequencies[index] = 44100f;
+                            newArchive.SampleFrequencies[index] = 48000f;
                         }
                     }
                     else
@@ -707,7 +760,7 @@ namespace O2Play
         {
             if (!_sampleHandles.TryGetValue(index, out int sampleHandle)) return;
 
-            int ch = Bass.SampleGetChannel(sampleHandle);
+            int ch = GetSampleChannel(sampleHandle);
             if (ch == 0) return;
 
             // Strip BassFlags.Loop so the channel plays as a strict non-looping one-shot
@@ -724,7 +777,7 @@ namespace O2Play
                 }
                 else
                 {
-                    baseFreq = 44100f;
+                    baseFreq = 48000f;
                 }
             }
             float targetFreq = baseFreq * _musicSpeed;
@@ -735,11 +788,10 @@ namespace O2Play
 
             if (offsetSeconds > 0.0)
             {
-                // Restart:true would rewind to 0, so position first and play without restart.
                 long bytePos = Bass.ChannelSeconds2Bytes(ch, offsetSeconds);
                 if (bytePos < 0 || !Bass.ChannelSetPosition(ch, bytePos))
                 {
-                    Bass.ChannelStop(ch); // offset is past the end of the sample
+                    Bass.ChannelStop(ch);
                     return;
                 }
                 Bass.ChannelPlay(ch, Restart: false);
@@ -755,6 +807,7 @@ namespace O2Play
                 {
                     _activeChannels.Add(ch);
                 }
+                _activeChannelSoundIndex[ch] = index;
                 if (isBackground)
                 {
                     _activeKeyChannels.Remove(ch);
@@ -847,13 +900,15 @@ namespace O2Play
                     if (_bgmStream != 0)
                     {
                         Bass.ChannelFlags(_bgmStream, 0, BassFlags.Loop);
+                        Bass.ChannelSetSync(_bgmStream, SyncFlags.End | SyncFlags.Mixtime, 0, _bgmSyncEnd, IntPtr.Zero);
+                        _bgmFinished = false;
                         if (Bass.ChannelGetAttribute(_bgmStream, ChannelAttribute.Frequency, out float bFreq) && bFreq > 0f)
                         {
                             _bgmBaseFreq = bFreq;
                         }
                         else
                         {
-                            _bgmBaseFreq = 44100f;
+                            _bgmBaseFreq = 48000f;
                         }
                         Bass.ChannelSetAttribute(_bgmStream, ChannelAttribute.Frequency, _bgmBaseFreq * _musicSpeed);
                         Bass.ChannelSetAttribute(_bgmStream, ChannelAttribute.Volume, _isBgmEnabled ? 1.0f : 0.0f);
@@ -868,6 +923,7 @@ namespace O2Play
 
                     if (targetSec < totalSec - 0.05)
                     {
+                        _bgmFinished = false;
                         long curPosBytes = Bass.ChannelGetPosition(_bgmStream);
                         double curSec = Bass.ChannelBytes2Seconds(_bgmStream, curPosBytes);
                         if (!trackChanged && Math.Abs(curSec - targetSec) < 0.15 && Bass.ChannelIsActive(_bgmStream) == PlaybackState.Playing)
@@ -887,6 +943,7 @@ namespace O2Play
                     {
                         Bass.ChannelPause(_bgmStream);
                         _bgmArmed = false;
+                        _bgmFinished = true;
                         return;
                     }
 
@@ -899,6 +956,7 @@ namespace O2Play
                     {
                         if (Bass.ChannelIsActive(_bgmStream) != PlaybackState.Playing)
                         {
+                            _bgmFinished = false;
                             Bass.ChannelPlay(_bgmStream, false);
                         }
                     }
@@ -954,9 +1012,21 @@ namespace O2Play
                 _pendingBgm = null;
                 PlayBgm(pb.Index, pb.Offset, pb.Play);
             }
-            else if (_bgmArmed && _bgmStream != 0 && Bass.ChannelIsActive(_bgmStream) != PlaybackState.Playing)
+            else if (_bgmArmed && _bgmStream != 0 && Bass.ChannelIsActive(_bgmStream) == PlaybackState.Paused)
             {
-                Bass.ChannelPlay(_bgmStream, false);
+                if (IsBgmFinished())
+                {
+                    _bgmArmed = false;
+                }
+                else
+                {
+                    Bass.ChannelPlay(_bgmStream, false);
+                }
+            }
+            else if (_bgmStream != 0 && Bass.ChannelIsActive(_bgmStream) == PlaybackState.Stopped)
+            {
+                _bgmArmed = false;
+                _bgmFinished = true;
             }
         }
 
@@ -977,6 +1047,7 @@ namespace O2Play
                 _activeKeyChannels.Clear();
                 _activeChannelFreqs.Clear();
                 _activeChannelBaseVols.Clear();
+                _activeChannelSoundIndex.Clear();
             }
 
             _pendingSamples.Clear();
@@ -1002,10 +1073,33 @@ namespace O2Play
 
         public void Update()
         {
-            // Prune finished channels every 250ms (or if channel list exceeds 48)
+            if (_bgmStream != 0)
+            {
+                if (_bgmFinished || Bass.ChannelIsActive(_bgmStream) == PlaybackState.Stopped)
+                {
+                    _bgmFinished = true;
+                    _bgmArmed = false;
+                }
+                else
+                {
+                    long lenBytes = Bass.ChannelGetLength(_bgmStream);
+                    if (lenBytes > 0)
+                    {
+                        long posBytes = Bass.ChannelGetPosition(_bgmStream);
+                        long tailBytes = Bass.ChannelSeconds2Bytes(_bgmStream, 0.25);
+                        if (posBytes >= (lenBytes - tailBytes))
+                        {
+                            _bgmFinished = true;
+                            _bgmArmed = false;
+                        }
+                    }
+                }
+            }
+
+            // Prune finished channels every 50ms (or if channel list exceeds 512)
             // This eliminates 95%+ of per-frame BASS native interop calls during rendering.
             double now = DateTime.UtcNow.Ticks / (double)TimeSpan.TicksPerSecond;
-            if (now - _lastChannelPruneSeconds < 0.25 && _activeChannels.Count < 48)
+            if (now - _lastChannelPruneSeconds < 0.05 && _activeChannels.Count < 512)
             {
                 return;
             }
@@ -1023,6 +1117,32 @@ namespace O2Play
                         _activeKeyChannels.Remove(ch);
                         _activeChannelFreqs.Remove(ch);
                         _activeChannelBaseVols.Remove(ch);
+                        _activeChannelSoundIndex.Remove(ch);
+                    }
+                }
+            }
+        }
+
+        public void StopKeysound(int soundIndex)
+        {
+            if (soundIndex < 0) return;
+            lock (_activeChannels)
+            {
+                for (int i = _activeChannels.Count - 1; i >= 0; i--)
+                {
+                    int ch = _activeChannels[i];
+                    // Never stop background accompaniment; only stop active player key channels if explicitly matching
+                    if (_activeKeyChannels.Contains(ch) && _activeChannelSoundIndex.TryGetValue(ch, out int sIdx) && sIdx == soundIndex)
+                    {
+                        if (Bass.ChannelIsActive(ch) != PlaybackState.Stopped)
+                        {
+                            Bass.ChannelStop(ch);
+                        }
+                        _activeChannels.RemoveAt(i);
+                        _activeKeyChannels.Remove(ch);
+                        _activeChannelFreqs.Remove(ch);
+                        _activeChannelBaseVols.Remove(ch);
+                        _activeChannelSoundIndex.Remove(ch);
                     }
                 }
             }
@@ -1049,12 +1169,28 @@ namespace O2Play
                 }
                 _currentBgmIndex = -1;
                 _bgmArmed = false;
+                _bgmFinished = true;
                 _pendingBgm = null;
             }
             catch (Exception ex)
             {
                 Logger.Error($"[AudioEngine] Error stopping BGM: {ex.Message}");
             }
+        }
+
+        public bool HasActiveKeysounds()
+        {
+            lock (_activeChannels)
+            {
+                foreach (int ch in _activeChannels)
+                {
+                    if (Bass.ChannelIsActive(ch) == PlaybackState.Playing)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         public void Clear()

@@ -23,11 +23,15 @@ namespace O2Play
                         note.IsHit = true;
                         if (audioMgr.Audio.IsBgmTrack(note.SoundIndex))
                         {
-                            if (audioMgr.Audio.CurrentBgmIndex != note.SoundIndex || !audioMgr.Audio.IsBgmPlaying)
+                            double dur = audioMgr.Audio.GetBgmDuration(note.SoundIndex);
+                            double offset = Math.Max(0, currentTime - note.TimeSeconds);
+                            if (dur <= 0.0 || offset < dur)
                             {
-                                audioMgr.ActiveBgmStartSongTime = note.TimeSeconds;
-                                double offset = Math.Max(0, currentTime - note.TimeSeconds);
-                                audioMgr.PlayBgm(note.SoundIndex, offset, isPlaying);
+                                if (audioMgr.Audio.CurrentBgmIndex != note.SoundIndex || !audioMgr.Audio.IsBgmPlaying)
+                                {
+                                    audioMgr.ActiveBgmStartSongTime = note.TimeSeconds;
+                                    audioMgr.PlayBgm(note.SoundIndex, offset, isPlaying);
+                                }
                             }
                         }
                         else
@@ -231,7 +235,7 @@ namespace O2Play
             }
         }
 
-        public void HandleKeyHold(BmsChart chart, double currentTime, int laneIdx, ScoreManager scoreMgr, AnimationManager animation)
+        public void HandleKeyHold(BmsChart chart, double currentTime, int laneIdx, ScoreManager scoreMgr, AnimationManager animation, AudioManager? audioMgr = null)
         {
             if (chart == null || laneIdx < 0 || laneIdx > 6) return;
 
@@ -258,7 +262,7 @@ namespace O2Play
             }
         }
 
-        public void HandleKeyUp(BmsChart chart, double currentTime, int laneIdx, ScoreManager scoreMgr, AnimationManager animation)
+        public void HandleKeyUp(BmsChart chart, double currentTime, int laneIdx, ScoreManager scoreMgr, AnimationManager animation, AudioManager? audioMgr = null)
         {
             if (chart == null || laneIdx < 0 || laneIdx > 6) return;
 

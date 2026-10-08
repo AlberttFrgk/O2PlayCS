@@ -574,7 +574,7 @@ namespace O2Play
                     var endNote = laneLNs[i + 1];
                     startNote.DurationTicks = Math.Max(1.0, endNote.Tick - startNote.Tick);
                     startNote.DurationSeconds = Math.Max(0.05, endNote.TimeSeconds - startNote.TimeSeconds);
-                    endNote.IsHit = true; // Consume end note
+                    endNote.IsHit = true;
                 }
             }
 
@@ -699,7 +699,6 @@ namespace O2Play
                 return;
             }
 
-            // Remove any whitespace inside note data
             data = data.Replace(" ", "").Replace("\t", "");
 
             int len = data.Length / 2;

@@ -43,9 +43,11 @@ namespace O2Play
             TexLight = LoadTexture("keylight.bmp", true);
             TexNote = LoadTexture("note.bmp", true);
             TexCombo = LoadTexture("combo_number.bmp", true);
+            Raylib.SetTextureFilter(TexCombo, TextureFilter.Bilinear);
             TexHitEffect = LoadTexture("hiteffect.bmp", true);
             TexLongEffect = LoadTexture("longeffect.bmp", true);
             TexJudgement = LoadTexture("judgement.bmp", true);
+            Raylib.SetTextureFilter(TexJudgement, TextureFilter.Bilinear);
             TexTargetBar = LoadTexture("targebar_measure.bmp", false);
         }
 

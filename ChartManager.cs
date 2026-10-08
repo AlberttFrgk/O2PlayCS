@@ -158,8 +158,15 @@ namespace O2Play
             if (Chart == null || Chart.Notes.Count == 0 || TotalDuration <= 0) return 0f;
             if (Chart.Measures.Count > 0)
             {
-                int curM = Chart.SecondsToMeasure(currentTime);
-                curM = Math.Clamp(curM, 0, Chart.Measures.Count - 1);
+                int curM = 0;
+                for (int i = Chart.Measures.Count - 1; i >= 0; i--)
+                {
+                    if (currentTime >= Chart.Measures[i].StartTimeSeconds - 1e-4)
+                    {
+                        curM = i;
+                        break;
+                    }
+                }
                 var m = Chart.Measures[curM];
                 double fracInM = m.DurationSeconds > 0
                     ? Math.Clamp((currentTime - m.StartTimeSeconds) / m.DurationSeconds, 0.0, 1.0)
@@ -174,12 +181,8 @@ namespace O2Play
             if (Chart == null || Chart.Notes.Count == 0 || TotalDuration <= 0) return 0.0;
             if (Chart.Measures.Count > 0)
             {
-                if (frac <= 0.001f)
-                {
-                    return 0.0;
-                }
-                double mExact = Math.Clamp(frac * Chart.Measures.Count, 0.0, Chart.Measures.Count - 0.0001);
-                int mIdx = (int)Math.Floor(mExact);
+                double mExact = Math.Clamp((double)frac * Chart.Measures.Count, 0.0, (double)Chart.Measures.Count);
+                int mIdx = Math.Min((int)Math.Floor(mExact), Chart.Measures.Count - 1);
                 double subFrac = mExact - mIdx;
                 var m = Chart.Measures[mIdx];
                 return m.StartTimeSeconds + (subFrac * m.DurationSeconds);

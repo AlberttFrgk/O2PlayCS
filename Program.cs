@@ -29,6 +29,32 @@ namespace O2Play
         [DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
         private static extern uint TimeEndPeriod(uint uMilliseconds);
 
+        private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, UIntPtr dwRefData);
+
+        [DllImport("comctl32.dll", ExactSpelling = true)]
+        private static extern bool SetWindowSubclass(IntPtr hWnd, SubclassProc pfnSubclass, UIntPtr uIdSubclass, UIntPtr dwRefData);
+
+        [DllImport("comctl32.dll", ExactSpelling = true)]
+        private static extern bool RemoveWindowSubclass(IntPtr hWnd, SubclassProc pfnSubclass, UIntPtr uIdSubclass);
+
+        [DllImport("comctl32.dll", ExactSpelling = true)]
+        private static extern IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", ExactSpelling = true)]
+        private static extern IntPtr SetTimer(IntPtr hWnd, IntPtr nIDEvent, uint uElapse, IntPtr lpTimerFunc);
+
+        [DllImport("user32.dll", ExactSpelling = true)]
+        private static extern bool KillTimer(IntPtr hWnd, IntPtr nIDEvent);
+
+        private const uint WM_TIMER = 0x0113;
+        private const uint WM_ENTERSIZEMOVE = 0x0231;
+        private const uint WM_EXITSIZEMOVE = 0x0232;
+        private const int DragTimerId = 9999;
+
+        private SubclassProc? _subclassProc;
+        private bool _isModalDragging = false;
+        private long _lastFrameTick = 0;
+
         private BmsChart _chart = null!;
         private AudioEngine _audio = null!;
         private GameEngine _engine = null!;
@@ -98,13 +124,12 @@ namespace O2Play
                 _pausedDueToBackground = false;
                 if (_engine != null)
                 {
-                    _engine.IsPlaying = true;
                     if (parsed.Measure > 0 && _chart.Notes.Count > 0)
                     {
                         double targetTime = _chart.TickToSeconds(parsed.Measure * 192.0);
                         _engine.SeekTo(targetTime);
                     }
-                    _engine.Audio.Resume();
+                    _engine.Resume();
                 }
                 if (!isInitial)
                 {
@@ -148,11 +173,20 @@ namespace O2Play
                 _engine.RequestOpenFile += OpenBmsDialog;
                 _engine.RequestChangeDifficulty += ChangeOjnDifficulty;
 
+                IntPtr hwnd = GetHwnd();
+                _subclassProc = WindowSubclass;
+                SetWindowSubclass(hwnd, _subclassProc, (UIntPtr)1, UIntPtr.Zero);
+
                 if (initialArgs.Length > 0)
                 {
                     ProcessCommandLineArgs(initialArgs, isInitial: true);
                     if (_exitRequested)
                     {
+                        if (hwnd != IntPtr.Zero && _subclassProc != null)
+                        {
+                            KillTimer(hwnd, (IntPtr)DragTimerId);
+                            RemoveWindowSubclass(hwnd, _subclassProc, (UIntPtr)1);
+                        }
                         _audio.StopAll();
                         _engine?.Dispose();
                         Raylib.CloseWindow();
@@ -161,7 +195,7 @@ namespace O2Play
                 }
 
                 int _testFrameCounter = 0;
-                long lastTick = System.Diagnostics.Stopwatch.GetTimestamp();
+                _lastFrameTick = System.Diagnostics.Stopwatch.GetTimestamp();
                 double targetFps = UserSettings.Load().FPSTarget > 0 ? UserSettings.Load().FPSTarget : 500.0;
 
                 while (!Raylib.WindowShouldClose())
@@ -210,15 +244,14 @@ namespace O2Play
                         LoadBmsFile(file, diff);
                     }
 
-                    bool isWindowActive = Raylib.IsWindowFocused() && !Raylib.IsWindowMinimized();
+                    bool isWindowActive = (Raylib.IsWindowFocused() || _isModalDragging) && !Raylib.IsWindowMinimized();
 
                     if (!isWindowActive)
                     {
                         if (_engine.IsPlaying && !_pausedDueToBackground)
                         {
                             _pausedDueToBackground = true;
-                            _engine.IsPlaying = false;
-                            _audio.Pause();
+                            _engine.Pause();
                         }
                     }
                     else
@@ -226,14 +259,16 @@ namespace O2Play
                         if (_pausedDueToBackground)
                         {
                             _pausedDueToBackground = false;
-                            _engine.IsPlaying = true;
-                            _audio.Resume();
+                            if (_engine.CanResume())
+                            {
+                                _engine.Resume();
+                            }
                         }
                     }
 
                     // Throttle frame rate when unfocused or minimized to keep CPU cool
                     double effectiveTargetFps = isWindowActive ? targetFps : Math.Min(60.0, targetFps);
-                    float dt = (float)PreciseFrameLimit(ref lastTick, effectiveTargetFps);
+                    float dt = (float)PreciseFrameLimit(ref _lastFrameTick, effectiveTargetFps);
                     _audio.Update();
                     _engine.IsWindowFocused = isWindowActive;
                     _engine.Update(dt);
@@ -250,6 +285,12 @@ namespace O2Play
                     }
                 }
 
+                if (hwnd != IntPtr.Zero && _subclassProc != null)
+                {
+                    KillTimer(hwnd, (IntPtr)DragTimerId);
+                    RemoveWindowSubclass(hwnd, _subclassProc, (UIntPtr)1);
+                }
+
                 _ipcCancelSource?.Cancel();
                 _audio.StopAll();
                 _engine?.Dispose();
@@ -259,6 +300,50 @@ namespace O2Play
             {
                 TimeEndPeriod(1);
             }
+        }
+
+        private IntPtr WindowSubclass(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, UIntPtr dwRefData)
+        {
+            switch (uMsg)
+            {
+                case WM_ENTERSIZEMOVE:
+                    _isModalDragging = true;
+                    _lastFrameTick = System.Diagnostics.Stopwatch.GetTimestamp();
+                    SetTimer(hWnd, (IntPtr)DragTimerId, 15, IntPtr.Zero);
+                    break;
+
+                case WM_EXITSIZEMOVE:
+                    KillTimer(hWnd, (IntPtr)DragTimerId);
+                    _isModalDragging = false;
+                    _lastFrameTick = System.Diagnostics.Stopwatch.GetTimestamp();
+                    break;
+
+                case WM_TIMER:
+                    if (wParam == (IntPtr)DragTimerId)
+                    {
+                        if (!Raylib.WindowShouldClose() && _engine != null && _audio != null)
+                        {
+                            long curTick = System.Diagnostics.Stopwatch.GetTimestamp();
+                            double delta = (curTick - _lastFrameTick) / (double)System.Diagnostics.Stopwatch.Frequency;
+                            _lastFrameTick = curTick;
+                            if (delta > 0.1) delta = 0.1;
+                            if (delta <= 0.0) delta = 0.0001;
+
+                            _audio.Update();
+                            _engine.IsWindowFocused = true;
+                            _engine.Update((float)delta);
+
+                            Raylib.BeginDrawing();
+                            Raylib.ClearBackground(new Color(0, 96, 128, 255));
+                            _engine.Draw();
+                            Raylib.EndDrawing();
+                        }
+                        return IntPtr.Zero;
+                    }
+                    break;
+            }
+
+            return DefSubclassProc(hWnd, uMsg, wParam, lParam);
         }
 
         private static unsafe IntPtr GetHwnd() => (IntPtr)Raylib.GetWindowHandle();

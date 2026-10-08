@@ -148,22 +148,22 @@ namespace O2Play
                 if (engine.TexNote.Id > 0)
                 {
                     int totalFrames = 3;
-                    int srcHeight = engine.TexNote.Height / totalFrames; // 7px
+                    int srcHeight = engine.TexNote.Height / totalFrames;
                     int frame = (int)(engine.CurrentTime * 12) % totalFrames;
 
                     Rectangle headSource;
                     Rectangle bodySource;
-                    if (laneIdx == 3) // Yellow (Lane 4) - 32px width (X: 28..59 in note.bmp)
+                    if (laneIdx == 3)
                     {
                         headSource = new Rectangle(28, frame * srcHeight, 32, srcHeight);
                         bodySource = new Rectangle(28, frame * srcHeight + 2, 32, 3);
                     }
-                    else if (laneIdx == 1 || laneIdx == 5) // Blue (Lanes 2, 6) - 22px width (X: 60..81 in note.bmp)
+                    else if (laneIdx == 1 || laneIdx == 5)
                     {
                         headSource = new Rectangle(60, frame * srcHeight, 22, srcHeight);
                         bodySource = new Rectangle(60, frame * srcHeight + 2, 22, 3);
                     }
-                    else // White (Lanes 1, 3, 5, 7) - 28px width (X: 0..27 in note.bmp)
+                    else
                     {
                         headSource = new Rectangle(0, frame * srcHeight, 28, srcHeight);
                         bodySource = new Rectangle(0, frame * srcHeight + 2, 28, 3);
@@ -252,8 +252,8 @@ namespace O2Play
                             int lIdx = note.Lane - 1;
                             int totalFrames = 14;
                             int frame = (int)(engine.CurrentTime * 24) % totalFrames;
-                            int leW = engine.TexLongEffect.Width / totalFrames; // 128px
-                            int leH = engine.TexLongEffect.Height;              // 128px
+                            int leW = engine.TexLongEffect.Width / totalFrames;
+                            int leH = engine.TexLongEffect.Height;
                             int hX = LaneX[lIdx] + (LaneW[lIdx] / 2) - (leW / 2);
                             int hY = HitY - (leH / 2) + 40;
                             Raylib.DrawTexturePro(engine.TexLongEffect,
@@ -265,28 +265,19 @@ namespace O2Play
                 }
             }
 
-            // Judgement centered at X=100, Y=360
             if (engine.DrawJudge && engine.TexJudgement.Id > 0)
             {
                 float w = engine.TexJudgement.Width * engine.JudgeSize;
                 float h = engine.TexJudgement.Height * engine.JudgeSize;
                 Rectangle src = new Rectangle(0, 0, engine.TexJudgement.Width, engine.TexJudgement.Height);
-                Rectangle dest = new Rectangle(100, 360, w, h);
+                Rectangle dest = new Rectangle(100, 340, w, h);
                 Vector2 origin = new Vector2(w / 2f, h / 2f);
                 Raylib.DrawTexturePro(engine.TexJudgement, src, dest, origin, 0f, Color.White);
             }
 
-            // Combo number resting at Y=240
             if (engine.DrawCombo && engine.Combo > 0 && engine.TexCombo.Id > 0)
             {
-                const double positionStart = 30.0;
-                double t = Math.Clamp(engine.ComboTimer / AnimationManager.ComboAnimDuration, 0.0, 1.0);
-                double t_m_1 = t - 1.0;
-                double easeOut = 1.0 + (t_m_1 * t_m_1 * t_m_1);
-                double currentPosition = positionStart * (1.0 - easeOut);
-                int comboY = 240 + (int)Math.Round(currentPosition);
-
-                DrawNumber(engine.TexCombo, engine.Combo, 100, comboY);
+                DrawNumber(engine.TexCombo, engine.Combo, 100, (int)Math.Round(engine.ComboY));
             }
 
             Raylib.EndBlendMode();
@@ -297,7 +288,8 @@ namespace O2Play
             if (tex.Id == 0) return;
             string numStr = Math.Abs(number).ToString();
             int cellWidth = tex.Width / 10;
-            float scale = cellWidth / 128f;
+            float texScale = cellWidth / 128f;
+            float sizeScale = numStr.Length >= 5 ? (4f / numStr.Length) : 1.0f;
 
             float maxAdvance = 0f;
             for (int d = 0; d < 10; d++)
@@ -305,27 +297,29 @@ namespace O2Play
                 if (ComboGlyphAdvance[d] > maxAdvance)
                     maxAdvance = ComboGlyphAdvance[d];
             }
-            int tabWidth = (int)Math.Round(maxAdvance * scale);
+            float tabWidth = maxAdvance * texScale * sizeScale;
 
-            int glyphHeight = (int)Math.Round(71f * scale);
-            int glyphTop = (int)Math.Round(27f * scale);
+            float srcGlyphHeight = 71f * texScale;
+            float srcGlyphTop = 27f * texScale;
+            float destGlyphHeight = srcGlyphHeight * sizeScale;
 
-            int totalWidth = numStr.Length * tabWidth;
-            int curX = x - (totalWidth / 2);
+            float totalWidth = numStr.Length * tabWidth;
+            float curX = x - (totalWidth / 2f);
 
             for (int i = 0; i < numStr.Length; i++)
             {
                 int digit = numStr[i] - '0';
                 if (digit < 0 || digit > 9) continue;
 
-                int w = (int)Math.Round(ComboGlyphWidth[digit] * scale);
-                int left = (int)Math.Round(ComboGlyphLeft[digit] * scale);
-                int srcX = (digit * cellWidth) + left;
+                float srcW = ComboGlyphWidth[digit] * texScale;
+                float srcLeft = ComboGlyphLeft[digit] * texScale;
+                float srcX = (digit * cellWidth) + srcLeft;
 
-                int glyphOffset = (tabWidth - w) / 2;
+                float destW = srcW * sizeScale;
+                float glyphOffset = (tabWidth - destW) / 2f;
 
-                Rectangle srcRect = new Rectangle(srcX, glyphTop, w, glyphHeight);
-                Rectangle destRect = new Rectangle(curX + glyphOffset, y - (glyphHeight / 2), w, glyphHeight);
+                Rectangle srcRect = new Rectangle(srcX, srcGlyphTop, srcW, srcGlyphHeight);
+                Rectangle destRect = new Rectangle(curX + glyphOffset, y - (destGlyphHeight / 2f), destW, destGlyphHeight);
 
                 Raylib.DrawTexturePro(tex, srcRect, destRect, Vector2.Zero, 0f, Color.White);
 

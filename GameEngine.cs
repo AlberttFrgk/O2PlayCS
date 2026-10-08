@@ -98,6 +98,7 @@ namespace O2Play
         public float JudgeSize => Animation.JudgeSize;
         public bool DrawCombo => Animation.DrawCombo;
         public double ComboTimer => Animation.ComboTimer;
+        public float ComboY => Animation.ComboY;
 
         public bool IsDraggingProgress => InputMgr.IsDraggingProgress;
         public float DragFrac => InputMgr.DragFrac;
@@ -122,6 +123,8 @@ namespace O2Play
             LoadChart(chart);
         }
 
+        private double _lastNoteTime = 0.0;
+
         public void LoadChart(BmsChart newChart)
         {
             ChartMgr.SetChart(newChart);
@@ -129,6 +132,16 @@ namespace O2Play
             ScoreMgr.Reset();
             Animation.Reset();
             IsPlaying = newChart.Notes.Count > 0;
+
+            _lastNoteTime = 0.0;
+            if (newChart.Notes.Count > 0)
+            {
+                foreach (var note in newChart.Notes)
+                {
+                    double end = note.TimeSeconds + note.DurationSeconds;
+                    if (end > _lastNoteTime) _lastNoteTime = end;
+                }
+            }
 
             Graphics?.Reset();
 
@@ -140,6 +153,34 @@ namespace O2Play
                 AudioMgr.Resume();
                 SeekTo(0);
             }
+        }
+
+        public void Pause()
+        {
+            IsPlaying = false;
+            AudioMgr.Pause();
+        }
+
+        public bool CanResume()
+        {
+            if (Chart == null || Chart.Notes.Count == 0) return false;
+            if (TotalDuration > 0 && CurrentTime >= TotalDuration) return false;
+            return true;
+        }
+
+        public void Resume()
+        {
+            if (!CanResume())
+            {
+                IsPlaying = false;
+                AudioMgr.StopAll();
+                AudioMgr.StopBgm();
+                return;
+            }
+
+            IsPlaying = true;
+            ResyncAudio();
+            AudioMgr.Resume();
         }
 
         public void Update(float dt)
@@ -154,7 +195,18 @@ namespace O2Play
             // Master clock advances purely via delta-time and music speed
             CurrentTime += dt * MusicSpeed;
 
-            if (TotalDuration > 0 && CurrentTime >= TotalDuration + 1.0)
+            // Synchronize with active BGM stream so window dragging or hitches never cause audio/note drift
+            double bgmPos = AudioMgr.Audio.BgmPositionSeconds;
+            if (bgmPos >= 0.0 && AudioMgr.ActiveBgmStartSongTime >= 0.0)
+            {
+                double targetSongTime = AudioMgr.ActiveBgmStartSongTime + bgmPos;
+                if (Math.Abs(CurrentTime - targetSongTime) > 0.02 && targetSongTime >= CurrentTime - 0.25)
+                {
+                    CurrentTime = targetSongTime;
+                }
+            }
+
+            if (TotalDuration > 0 && CurrentTime >= TotalDuration)
             {
                 CurrentTime = TotalDuration;
                 IsPlaying = false;
@@ -191,7 +243,7 @@ namespace O2Play
             ResyncAudio();
         }
 
-        private void ResyncAudio()
+        public void ResyncAudio()
         {
             AudioMgr.ResyncAudio(Chart, CurrentTime, IsPlaying);
         }

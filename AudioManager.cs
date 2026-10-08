@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 namespace O2Play
 {
-    // Manages audio playback, clock synchronization, keysounds, and BGM streams.
     public class AudioManager
     {
         public AudioEngine Audio { get; }
@@ -47,14 +46,11 @@ namespace O2Play
             return currentTime;
         }
 
-        // Rebuilds BGM track and long background samples for CurrentTime after seek.
         public void ResyncAudio(BmsChart chart, double currentTime, bool isPlaying)
         {
-            // Arms audio for the new seek position; begins playback on Audio.Resume().
             if (!isPlaying && !Audio.IsPaused) Audio.Pause();
             bool live = true;
 
-            // Replays passed lane 0 background notes to resume active streaming BGM.
             int bgmIndex = -1;
             double bgmStart = 0.0;
             bool anyBgmNote = false;
@@ -65,7 +61,8 @@ namespace O2Play
                 if (!note.IsKeysound || !Audio.IsBgmTrack(note.SoundIndex)) continue;
                 anyBgmNote = true;
 
-                if (!note.IsHit)
+                bool hasPassed = note.IsHit || currentTime >= note.TimeSeconds;
+                if (!hasPassed)
                 {
                     nextBgmNote ??= note; // first trigger still ahead of us
                     continue;
@@ -117,18 +114,19 @@ namespace O2Play
                 Audio.PauseBgm();
             }
 
-            // Restore background samples that were playing before seek
+            // Restore active background samples
             var latestPerSample = new Dictionary<int, BmsNote>();
             foreach (var note in chart.Notes)
             {
-                if (!note.IsKeysound || !note.IsHit) continue;          // already passed (notes at "now" fire in Update)
-                if (Audio.IsBgmTrack(note.SoundIndex)) continue;        // handled by the BGM stream above
+                bool hasPassed = note.IsHit || currentTime >= note.TimeSeconds;
+                if (!note.IsKeysound || !hasPassed) continue;
+                if (Audio.IsBgmTrack(note.SoundIndex)) continue;
 
                 double sampleDur = Audio.GetSampleDuration(note.SoundIndex);
                 if (sampleDur < LongSampleSeconds) continue;
-                if (currentTime - note.TimeSeconds >= sampleDur - 0.02) continue; // already finished
+                if (currentTime - note.TimeSeconds >= sampleDur - 0.02) continue;
 
-                latestPerSample[note.SoundIndex] = note; // notes are time-sorted: latest trigger wins
+                latestPerSample[note.SoundIndex] = note;
             }
 
             foreach (var kvp in latestPerSample)
@@ -159,6 +157,7 @@ namespace O2Play
         public void StopBgm() => Audio.StopBgm();
         public void PauseBgm() => Audio.PauseBgm();
         public void StopAll() => Audio.StopAll();
+        public void StopKeysound(int soundIndex) => Audio.StopKeysound(soundIndex);
         public void Pause() => Audio.Pause();
         public void Resume() => Audio.Resume();
         public void Update() => Audio.Update();
