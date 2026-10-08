@@ -34,7 +34,7 @@ The compiled output will be located in:
 ```text
 bin\release\net10.0-windows\
 ```
-All required native libraries (`raylib.dll`, `bass.dll`, `bass_fx.dll`) and embedded assets are automatically copied alongside `O2Play.exe`.
+All required native libraries (`raylib.dll`, `bass.dll`) and embedded assets are automatically copied alongside `O2Play.exe`.
 
 ---
 
