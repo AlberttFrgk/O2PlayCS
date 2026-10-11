@@ -179,7 +179,6 @@ namespace O2Play
             }
 
             IsPlaying = true;
-            ResyncAudio();
             AudioMgr.Resume();
         }
 

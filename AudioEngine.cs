@@ -742,6 +742,7 @@ namespace O2Play
 
             if (_isPaused)
             {
+                _pendingSamples.RemoveAll(p => p.Index == index);
                 _pendingSamples.Add((index, offsetSeconds, volume, pan));
                 return;
             }

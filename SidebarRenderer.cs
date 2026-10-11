@@ -89,7 +89,11 @@ namespace O2Play
             UpdateBoxTexture(ref _texGenre, ref _lastGenre, "   Genre: " + (engine.Chart.Header.Genre ?? ""), 187, 19);
             if (_texGenre.HasValue) Raylib.DrawTexture(_texGenre.Value, 202, 40, Color.White);
 
-            UpdateBoxTexture(ref _texArtist, ref _lastArtist, "   Artist: " + (engine.Chart.Header.Artist ?? ""), 187, 19);
+            string artistLabel = engine.Chart.IsOjn ? "   Noter: " : "   Artist: ";
+            string artistValue = engine.Chart.IsOjn
+                ? (!string.IsNullOrEmpty(engine.Chart.Header.Noter) ? engine.Chart.Header.Noter : (engine.Chart.Header.Artist ?? ""))
+                : (engine.Chart.Header.Artist ?? "");
+            UpdateBoxTexture(ref _texArtist, ref _lastArtist, artistLabel + artistValue, 187, 19);
             if (_texArtist.HasValue) Raylib.DrawTexture(_texArtist.Value, 202, 72, Color.White);
 
             string notesStr = $"   Notes: {engine.Chart.TotalNoteCount}";

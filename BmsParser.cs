@@ -10,6 +10,7 @@ namespace O2Play
         public string Title { get; set; } = string.Empty;
         public string Artist { get; set; } = string.Empty;
         public string Genre { get; set; } = string.Empty;
+        public string Noter { get; set; } = string.Empty;
         public double InitialBpm { get; set; } = 130.0;
         public int PlayLevel { get; set; } = 1;
         public int LnObj { get; set; } = 0; // #LNOBJ xx
@@ -655,6 +656,7 @@ namespace O2Play
         {
             if (command == "TITLE") header.Title = value;
             else if (command == "ARTIST") header.Artist = value;
+            else if (command == "SUBARTIST" || command == "NOTER") header.Noter = value;
             else if (command == "GENRE") header.Genre = value;
             else if (command == "BPM" && double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double bpm)) header.InitialBpm = bpm;
             else if (command == "PLAYLEVEL" && int.TryParse(value, out int pl)) header.PlayLevel = pl;

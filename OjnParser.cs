@@ -76,6 +76,7 @@ namespace O2Play
 
             string title = DecodeString(titleBytes);
             string artist = DecodeString(artistBytes);
+            string noteArranger = DecodeString(noteArrangerBytes);
             string ojmName = DecodeString(ojmBytes);
 
             string genre = genreInt switch
@@ -136,6 +137,7 @@ namespace O2Play
                 {
                     Title = !string.IsNullOrEmpty(title) ? title : Path.GetFileNameWithoutExtension(filePath),
                     Artist = artist,
+                    Noter = noteArranger,
                     Genre = genre,
                     InitialBpm = BmsChart.SanitizeBpm(bpm),
                     PlayLevel = level
